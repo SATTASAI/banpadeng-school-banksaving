@@ -4,42 +4,89 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>เข้าสู่ระบบ - BPD School Bank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --primary: #4f46e5;
+    --primary-dark: #3730a3;
+    --primary-light: #eef2ff;
+    --surface: #ffffff;
+    --background: #f4f6fd;
+    --text: #1e2433;
+    --muted: #6b7590;
+    --border: #e4e8f5;
+    --danger: #dc2626;
+    --radius-lg: 24px;
+    --radius-md: 14px;
+    --shadow: 0 20px 50px -12px rgba(67, 56, 202, .18);
+  }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-family: 'Prompt', 'Segoe UI', system-ui, sans-serif;
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #eef2ff, #f8fafc);
+    padding: 20px;
+    color: var(--text);
+    background:
+      radial-gradient(circle at top left, rgba(79,70,229,.12), transparent 40%),
+      radial-gradient(circle at bottom right, rgba(129,140,248,.16), transparent 45%),
+      var(--background);
   }
   .card {
     width: 100%;
-    max-width: 380px;
-    background: #fff;
-    border-radius: 20px;
-    padding: 32px;
-    box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+    max-width: 400px;
+    background: var(--surface);
+    border-radius: var(--radius-lg);
+    padding: 40px 34px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
   }
-  h1 { font-size: 20px; margin-bottom: 4px; color: #1e293b; }
-  p.sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
-  label { display: block; font-size: 13px; color: #334155; margin: 14px 0 6px; }
+  .logo-badge {
+    width: 68px; height: 68px; border-radius: 18px;
+    background: #fff; display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px; padding: 6px;
+    box-shadow: 0 6px 18px -6px rgba(55,47,158,.35);
+  }
+  .logo-badge img { width: 100%; height: 100%; object-fit: contain; }
+  h1 { font-size: 21px; font-weight: 700; margin-bottom: 4px; }
+  p.sub { color: var(--muted); font-size: 13.5px; margin-bottom: 28px; }
+  label { display: block; font-size: 13px; font-weight: 500; color: #475069; margin: 16px 0 6px; }
   input {
-    width: 100%; padding: 11px 14px; border: 1px solid #e2e8f0;
-    border-radius: 10px; font-size: 14px;
+    width: 100%; padding: 12px 14px; border: 1.5px solid var(--border);
+    border-radius: var(--radius-md); font-size: 14.5px; font-family: inherit;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  input:focus {
+    outline: none; border-color: var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-light);
   }
   button {
-    width: 100%; margin-top: 22px; padding: 12px; border: none;
-    border-radius: 10px; background: #4338ca; color: #fff; font-size: 15px;
-    font-weight: 600; cursor: pointer;
+    width: 100%; margin-top: 26px; padding: 13px; border: none;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+    color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
+    transition: transform .1s, box-shadow .15s;
+    box-shadow: 0 8px 20px -6px rgba(79,70,229,.5);
   }
-  button:disabled { opacity: .6; cursor: default; }
-  .error { color: #dc2626; font-size: 13px; margin-top: 12px; min-height: 18px; }
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+  button:disabled { opacity: .6; cursor: default; box-shadow: none; }
+  .error {
+    color: var(--danger); font-size: 13px; margin-top: 14px; min-height: 18px;
+    background: #fef2f2; border-radius: 10px; padding: 0;
+  }
+  .error:not(:empty) { padding: 8px 12px; }
+  .footnote { text-align: center; font-size: 12px; color: var(--muted); margin-top: 22px; }
 </style>
 </head>
 <body>
   <form class="card" id="loginForm">
+    <div class="logo-badge">
+      <img src="/logo.png" alt="ตราโรงเรียนบ้านป่าเด็ง">
+    </div>
     <h1>BPD School Bank</h1>
     <p class="sub">เข้าสู่ระบบธนาคารโรงเรียน</p>
 
@@ -51,13 +98,10 @@
 
     <div class="error" id="errorBox"></div>
     <button type="submit" id="submitBtn">เข้าสู่ระบบ</button>
+    <p class="footnote">โรงเรียนบ้านป่าเด็ง</p>
   </form>
 
 <script>
-  function escapeHtml(v) {
-    return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-  }
-
   document.getElementById('loginForm').addEventListener('submit', async function(e) {
     e.preventDefault();
     const btn = document.getElementById('submitBtn');
