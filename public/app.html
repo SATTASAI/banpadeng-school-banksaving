@@ -356,6 +356,49 @@
       <div id="hoList">กำลังโหลด...</div>
     </div>
   </section>
+
+  <!-- ACADEMIC YEAR / GRADUATION -->
+  <section class="pane" data-pane="academic">
+    <div class="card">
+      <h2>เลื่อนชั้นเรียน</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">ย้ายนักเรียนทุกคนที่ยังใช้งานอยู่จากชั้นเดิมไปชั้นใหม่ (ไม่กระทบยอดเงินในบัญชี)</p>
+      <label>ชั้นเดิม</label>
+      <input id="promoteFromGrade" placeholder="เช่น ป.5">
+      <label>ชั้นใหม่</label>
+      <input id="promoteToGrade" placeholder="เช่น ป.6">
+      <button class="primary small" id="promoteBtn" style="margin-top:14px;">เลื่อนชั้น</button>
+      <div class="msg" id="promoteMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>จำนวนนักเรียนตามชั้น (ที่ยังใช้งานอยู่)</h2>
+      <div id="gradeSummaryList">กำลังโหลด...</div>
+    </div>
+
+    <div class="card">
+      <h2>ดำเนินการจบการศึกษา (Graduation Purge)</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">ระบบจะตรวจสอบก่อนว่านักเรียนคนไหนมียอดเงินค้างหรือเงินกู้ค้างอยู่ — ต้องจัดการให้เรียบร้อยก่อนจึงจะจบการศึกษาได้</p>
+      <label>ชั้นที่จะดำเนินการจบการศึกษา</label>
+      <input id="gradGradeInput" placeholder="เช่น ป.6 หรือ ม.3">
+      <button class="primary small" id="gradPreviewBtn" style="margin-top:14px;">ตรวจสอบก่อนดำเนินการ</button>
+      <div class="msg" id="gradPreviewMsg"></div>
+
+      <div id="gradPreviewBox" class="subcard" style="display:none;">
+        <h3>ผลการตรวจสอบ</h3>
+        <div id="gradPreviewSummary" style="font-size:13px;margin-bottom:8px;"></div>
+        <div id="gradPreviewList" style="max-height:280px;overflow-y:auto;"></div>
+        <label style="margin-top:14px;">พิมพ์ข้อความยืนยันให้ตรงทุกตัวอักษร: <strong id="gradConfirmPhrase"></strong></label>
+        <input id="gradConfirmInput">
+        <button class="primary danger small" id="gradExecuteBtn" style="margin-top:14px;">ยืนยันดำเนินการจบการศึกษา</button>
+        <div class="msg" id="gradExecuteMsg"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ประวัติการดำเนินการจบการศึกษา</h2>
+      <div id="gradBatchList">กำลังโหลด...</div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -406,6 +449,7 @@
     { key: 'open-account', label: 'เปิดบัญชี', permission: 'CAN_OPEN_ACCOUNT' },
     { key: 'loans', label: 'เงินกู้', permission: 'CAN_MANAGE_LOANS' },
     { key: 'handover', label: 'ส่งมอบเงินสด', permission: 'CAN_HANDOVER_CASH' },
+    { key: 'academic', label: 'เลื่อนชั้น/จบการศึกษา', permission: 'CAN_MANAGE_ACADEMIC_YEAR' },
     { key: 'admin', label: 'ผู้ใช้งาน', permission: 'CAN_MANAGE_USERS' }
   ];
 
@@ -429,6 +473,7 @@
     if (key === 'admin') loadUsers();
     if (key === 'loans') { loadLoanProducts(); loadLoans(); }
     if (key === 'handover') { loadHandoverUsers(); loadHandovers(); }
+    if (key === 'academic') { loadGradeSummary(); loadGraduationBatches(); }
   }
 
   async function init() {
@@ -892,6 +937,96 @@
     if (!res.success) { alert(res.message); return; }
     loadHandovers();
   };
+
+  // ---- ACADEMIC YEAR / GRADUATION ---------------------------------------
+
+  let currentGradPreview = null;
+
+  document.getElementById('promoteBtn').onclick = async function() {
+    const msg = document.getElementById('promoteMsg');
+    const fromGrade = document.getElementById('promoteFromGrade').value.trim();
+    const toGrade = document.getElementById('promoteToGrade').value.trim();
+    if (!fromGrade || !toGrade) { msg.className = 'msg error'; msg.textContent = 'กรุณากรอกชั้นเดิมและชั้นใหม่'; return; }
+    if (!confirm(`ยืนยันเลื่อนชั้นนักเรียนทุกคนจาก "${fromGrade}" ไปเป็น "${toGrade}" ?`)) return;
+    const res = await api('/api/academic/promote', { method: 'POST', body: JSON.stringify({ fromGrade, toGrade }) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? `เลื่อนชั้นสำเร็จ ${res.promotedCount} คน` : res.message;
+    if (res.success) { document.getElementById('promoteFromGrade').value = ''; document.getElementById('promoteToGrade').value = ''; loadGradeSummary(); }
+  };
+
+  async function loadGradeSummary() {
+    const box = document.getElementById('gradeSummaryList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/academic/grades');
+    if (!res.success) { box.textContent = res.message; return; }
+    const grades = res.grades || [];
+    box.innerHTML = grades.length
+      ? `<table><thead><tr><th>ชั้น</th><th>จำนวนนักเรียน</th></tr></thead><tbody>${grades.map((g) => `<tr><td>${escapeHtml(g.grade)}</td><td>${g.memberCount}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="empty-hint">ไม่พบข้อมูลชั้นเรียน</p>';
+  }
+
+  document.getElementById('gradPreviewBtn').onclick = async function() {
+    const msg = document.getElementById('gradPreviewMsg');
+    const grade = document.getElementById('gradGradeInput').value.trim();
+    if (!grade) { msg.className = 'msg error'; msg.textContent = 'กรุณากรอกชั้นที่จะดำเนินการ'; return; }
+
+    const res = await api('/api/academic/graduation/preview', { method: 'POST', body: JSON.stringify({ grade }) });
+    if (!res.success) { msg.className = 'msg error'; msg.textContent = res.message; document.getElementById('gradPreviewBox').style.display = 'none'; return; }
+    msg.textContent = '';
+    currentGradPreview = res;
+
+    document.getElementById('gradPreviewBox').style.display = 'block';
+    document.getElementById('gradPreviewSummary').innerHTML =
+      `ทั้งหมด ${res.totalCount} คน — <span style="color:var(--success);font-weight:600;">พร้อมจบการศึกษา ${res.eligibleCount} คน</span>` +
+      (res.blockedCount ? `, <span style="color:var(--danger);font-weight:600;">ติดปัญหา ${res.blockedCount} คน</span>` : '');
+
+    document.getElementById('gradPreviewList').innerHTML = res.members.map((m) => `
+      <div class="tx-mini-row">
+        <span>${escapeHtml(m.fullName)} ${m.schoolStudentId ? '(' + escapeHtml(m.schoolStudentId) + ')' : ''}</span>
+        ${m.eligible ? '<span class="badge open">พร้อมจบ</span>' : `<span class="badge closed" title="${escapeHtml(m.blockers.join(', '))}">${escapeHtml(m.blockers.join(', '))}</span>`}
+      </div>`).join('');
+
+    document.getElementById('gradConfirmPhrase').textContent = res.requiredConfirmText;
+    document.getElementById('gradConfirmInput').value = '';
+    document.getElementById('gradExecuteMsg').textContent = '';
+  };
+
+  document.getElementById('gradExecuteBtn').onclick = async function() {
+    const msg = document.getElementById('gradExecuteMsg');
+    if (!currentGradPreview) return;
+    const confirmText = document.getElementById('gradConfirmInput').value;
+    if (confirmText !== currentGradPreview.requiredConfirmText) {
+      msg.className = 'msg error'; msg.textContent = 'ข้อความยืนยันไม่ตรง กรุณาพิมพ์ให้ตรงทุกตัวอักษร'; return;
+    }
+    if (!currentGradPreview.eligibleCount) { msg.className = 'msg error'; msg.textContent = 'ไม่มีนักเรียนที่พร้อมจบการศึกษาในชุดนี้'; return; }
+
+    const res = await api('/api/academic/graduation/execute', {
+      method: 'POST',
+      body: JSON.stringify({ token: currentGradPreview.token, confirmText })
+    });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success
+      ? `ดำเนินการจบการศึกษาสำเร็จ ${res.graduatedCount} คน` + (res.skippedCount ? ` (ข้าม ${res.skippedCount} คนที่มีการเปลี่ยนแปลงข้อมูลหลังตรวจสอบ)` : '')
+      : res.message;
+    if (res.success) {
+      currentGradPreview = null;
+      document.getElementById('gradPreviewBox').style.display = 'none';
+      document.getElementById('gradGradeInput').value = '';
+      loadGradeSummary();
+      loadGraduationBatches();
+    }
+  };
+
+  async function loadGraduationBatches() {
+    const box = document.getElementById('gradBatchList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/academic/graduation/batches');
+    if (!res.success) { box.textContent = res.message; return; }
+    const batches = res.batches || [];
+    box.innerHTML = batches.length
+      ? batches.map((b) => `<div class="tx-mini-row"><span>ชั้น ${escapeHtml(b.grade)} — ${b.memberCount} คน</span><span class="result-sub">${new Date(b.executedAt).toLocaleString('th-TH')}</span></div>`).join('')
+      : '<p class="empty-hint">ยังไม่มีประวัติการดำเนินการ</p>';
+  }
 
   init();
 </script>

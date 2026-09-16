@@ -20,6 +20,13 @@ import {
   handleReceiveLoanPayment
 } from './routes/loans.js';
 import { handleCreateHandover, handleListHandovers, handleConfirmHandover } from './routes/handover.js';
+import {
+  handleGradeSummary,
+  handlePromoteGrade,
+  handleGraduationPreview,
+  handleGraduationExecute,
+  handleListGraduationBatches
+} from './routes/academic.js';
 import { jsonError } from './auth.js';
 
 const ROUTES = [
@@ -55,8 +62,14 @@ const ROUTES = [
   // /api/loans/:id ... handled separately below
 
   ['POST', '/api/cash-handover', handleCreateHandover],
-  ['GET', '/api/cash-handover', handleListHandovers]
+  ['GET', '/api/cash-handover', handleListHandovers],
   // /api/cash-handover/:id/confirm handled separately below
+
+  ['GET', '/api/academic/grades', handleGradeSummary],
+  ['POST', '/api/academic/promote', handlePromoteGrade],
+  ['POST', '/api/academic/graduation/preview', handleGraduationPreview],
+  ['POST', '/api/academic/graduation/execute', handleGraduationExecute],
+  ['GET', '/api/academic/graduation/batches', handleListGraduationBatches]
 ];
 
 export default {

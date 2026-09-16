@@ -12,10 +12,15 @@ Bank Session, จัดการผู้ใช้งาน
 (สร้างรายการกลับที่ตรวจสอบยอดคงเหลือ), และส่งมอบเงินสดระหว่างผู้ใช้งาน (พร้อมการยืนยัน
 รับจากผู้รับ)
 
-ยังไม่รวม: เลื่อนชั้น/จบการศึกษาประจำปี (ต้องพอร์ต logic บล็อกกรณีมีเงินกู้ค้างจาก
-เวอร์ชัน Apps Script — ตอนนี้มีฟังก์ชัน `memberHasOpenLoan()` ให้ใช้ต่อได้แล้ว),
-ปรับโครงสร้างหนี้ (restructuring), สำรอง/กู้คืนฐานข้อมูล, Export CSV/PDF, ออกเอกสาร
-ราชการ (DOCX/PDF) — จะทำต่อเป็นเฟสถัดไป
+**Phase 3 (เพิ่มใหม่):** เลื่อนชั้นเรียน (bulk), และจบการศึกษา/graduation-purge แบบ
+มีระบบตรวจสอบก่อนดำเนินการจริง (preview) — บล็อกอัตโนมัติถ้านักเรียนคนไหนมียอดเงิน
+ในบัญชีค้างอยู่หรือมีเงินกู้ค้างชำระ (ใช้ `memberHasOpenLoan()` เดียวกับที่ปิดบัญชีใช้),
+ต้องพิมพ์ข้อความยืนยันให้ตรงทุกตัวอักษรก่อนดำเนินการจริง, ใช้ short-lived token
+(อายุ 5 นาที ผูกกับแอดมินที่ตรวจสอบ) ป้องกันการดำเนินการผิดชุดข้อมูล, และเก็บ
+snapshot ก่อนลบไว้ในตาราง `graduation_batches` เพื่อตรวจสอบย้อนหลังได้เสมอ
+
+ยังไม่รวม: ปรับโครงสร้างหนี้ (restructuring), สำรอง/กู้คืนฐานข้อมูลแบบเต็มระบบ,
+Export CSV/PDF, ออกเอกสารราชการ (DOCX/PDF) — จะทำต่อเป็นเฟสถัดไป
 
 ## สิ่งที่ต่างจากเวอร์ชัน Apps Script เดิม (ตั้งใจให้ต่างและดีขึ้น)
 
@@ -40,9 +45,10 @@ npm install
 npx wrangler d1 create banpadeng-school-bank-db
 # คัดลอก database_id ที่ได้ไปใส่ใน wrangler.jsonc (REPLACE_WITH_REAL_DATABASE_ID)
 
-# 2) รัน schema (รันทั้งสองไฟล์ตามลำดับ ถ้าอัพเดตจากโปรเจกต์เดิมที่มีแค่ 0001)
+# 2) รัน schema (รันตามลำดับ ถ้าอัพเดตจากโปรเจกต์เดิมที่มีไฟล์ไม่ครบ)
 npm run db:migrate:remote
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0002_loans_closure_handover.sql
+npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0003_academic_year.sql
 
 # 3) deploy
 npm run deploy
@@ -63,6 +69,7 @@ Cloudflare Dashboard > Workers > โปรเจกต์นี้ > Settings > 
 ```bash
 npm run db:migrate:local
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0002_loans_closure_handover.sql
+npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0003_academic_year.sql
 npm run dev
 ```
 
@@ -95,10 +102,8 @@ public/
 ## งานที่ยังไม่ได้ทำ (เว้นไว้เป็นเฟสถัดไป)
 
 - ปรับโครงสร้างหนี้ (loan restructuring)
-- โมดูลเลื่อนชั้น/จบการศึกษา + purge ข้อมูล — ต้องคง logic การบล็อกกรณีมีเงินกู้ค้าง
-  (มีฟังก์ชัน `memberHasOpenLoan()` ใน `src/routes/loans.js` ให้เรียกใช้ต่อได้แล้ว
-  เหมือนที่ใช้ใน `handleCloseAccount`)
-- สำรอง/กู้คืนฐานข้อมูล (backup/restore)
+- สำรอง/กู้คืนฐานข้อมูลแบบเต็มระบบ (ตอนนี้มีแค่ snapshot อัตโนมัติก่อน purge ตอน
+  จบการศึกษา เก็บใน `graduation_batches.snapshot_json`)
 - Export CSV/PDF, ออกเอกสารราชการ (สัญญาเงินกู้, ใบเสร็จ ฯลฯ เป็น DOCX/PDF)
 - หน้า admin แก้ไขสิทธิ์ผู้ใช้งานแบบละเอียด (ตอนนี้ต้องตั้งสิทธิ์ผ่าน API โดยตรง —
   หน้าเว็บมีแค่สร้างผู้ใช้ + ดูรายชื่อ ยังไม่มีปุ่มแก้ไขสิทธิ์ทีละอัน)
@@ -114,7 +119,8 @@ public/
 - `CAN_RECEIVE_LOAN_PAYMENT` — รับชำระเงินกู้
 - `CAN_CORRECT_TRANSACTION` — ยกเลิก/แก้ไขรายการฝาก-ถอนย้อนหลัง
 - `CAN_HANDOVER_CASH` — ส่งมอบ/รับมอบเงินสด
-- `CAN_CLOSE_ACCOUNT` — มีอยู่แล้วตั้งแต่ Phase 1 แต่เพิ่งเริ่มใช้งานจริงในเฟสนี้
+- `CAN_CLOSE_ACCOUNT` — มีอยู่แล้วตั้งแต่ Phase 1 แต่เพิ่งเริ่มใช้งานจริงในเฟส 2
+- `CAN_MANAGE_ACADEMIC_YEAR` — เลื่อนชั้น/ดำเนินการจบการศึกษา (Phase 3)
 
 Admin มีสิทธิ์ทั้งหมดโดยอัตโนมัติ ส่วน TELLER ต้องเปิดสิทธิ์ที่ต้องการทีละคนผ่าน
 `PUT /api/admin/users/:id` (ส่ง `permissions: { "CAN_MANAGE_LOANS": true, ... }`)
