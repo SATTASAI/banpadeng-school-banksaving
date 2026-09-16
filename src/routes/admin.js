@@ -1,5 +1,17 @@
-import { createPasswordRecord, requireAdmin, newId, jsonOk, jsonError, writeAuditLog } from '../auth.js';
+import { createPasswordRecord, requireAdmin, requireSession, newId, jsonOk, jsonError, writeAuditLog } from '../auth.js';
 import { PERMISSIONS, DEFAULT_PERMISSIONS_BY_ROLE } from '../permissions.js';
+
+/** Lightweight active-user picker for any logged-in user (e.g. cash-handover recipient dropdown) -- no admin-only fields. */
+export async function handleListActiveUsers(request, env) {
+  const user = await requireSession(request, env);
+  if (!user) return jsonError('Session หมดอายุ กรุณาเข้าสู่ระบบใหม่', 401);
+
+  const { results } = await env.DB
+    .prepare('SELECT id, display_name, username FROM users WHERE active = 1 ORDER BY display_name')
+    .all();
+
+  return jsonOk({ users: results.map((u) => ({ userId: u.id, displayName: u.display_name, username: u.username })) });
+}
 
 export async function handleListUsers(request, env) {
   const { user, error } = await requireAdmin(request, env);

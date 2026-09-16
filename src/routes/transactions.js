@@ -122,6 +122,59 @@ export async function handleWithdraw(request, env) {
   return jsonOk(txResponse(tx, false));
 }
 
+export async function handleVoidTransaction(request, env, txId) {
+  const { user, error } = await requirePermission(request, env, 'CAN_CORRECT_TRANSACTION');
+  if (error) return error;
+
+  const body = await request.json().catch(() => ({}));
+  const reason = String(body.reason || '').trim().slice(0, 300);
+  if (!reason) return jsonError('กรุณาระบุเหตุผลในการยกเลิกรายการ');
+
+  const tx = await env.DB.prepare('SELECT * FROM transactions WHERE id = ?').bind(txId).first();
+  if (!tx) return jsonError('ไม่พบรายการ', 404);
+  if (!['DEPOSIT', 'WITHDRAW'].includes(tx.type)) return jsonError('ยกเลิกได้เฉพาะรายการฝากหรือถอนเท่านั้น');
+  if (tx.reversed_by_tx_id) return jsonError('รายการนี้ถูกยกเลิกไปแล้ว');
+
+  const account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(tx.account_id).first();
+  if (!account) return jsonError('ไม่พบบัญชีของรายการนี้');
+
+  const now = Date.now();
+  const reversalId = newId('TX');
+  const activeSession = await getActiveBankSession(env);
+
+  if (tx.type === 'DEPOSIT') {
+    // Reversing a deposit removes money -- must not push the balance negative.
+    const updateResult = await env.DB
+      .prepare("UPDATE accounts SET balance = balance - ?, updated_at = ? WHERE id = ? AND balance >= ?")
+      .bind(tx.amount, now, tx.account_id, tx.amount)
+      .run();
+    if (!updateResult.meta || updateResult.meta.changes === 0) {
+      return jsonError('ไม่สามารถยกเลิกรายการฝากนี้ได้ เนื่องจากยอดคงเหลือปัจจุบันไม่พอ (มีการถอนเงินไปแล้วหลังรายการนี้)');
+    }
+  } else {
+    await env.DB.prepare("UPDATE accounts SET balance = balance + ?, updated_at = ? WHERE id = ?")
+      .bind(tx.amount, now, tx.account_id).run();
+  }
+
+  const refreshed = await env.DB.prepare('SELECT balance FROM accounts WHERE id = ?').bind(tx.account_id).first();
+  const reversalType = tx.type === 'DEPOSIT' ? 'WITHDRAW' : 'DEPOSIT';
+
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO transactions (id, bank_session_id, account_id, type, amount, balance_before, balance_after, location_id, user_id, note, reversal_of_tx_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(reversalId, activeSession ? activeSession.id : tx.bank_session_id, tx.account_id, reversalType, tx.amount,
+      refreshed.balance + (reversalType === 'WITHDRAW' ? tx.amount : -tx.amount), refreshed.balance, tx.location_id, user.id,
+      `ยกเลิกรายการ ${tx.id}: ${reason}`, txId, now),
+    env.DB.prepare('UPDATE transactions SET reversed_by_tx_id = ?, void_reason = ? WHERE id = ?')
+      .bind(reversalId, reason, txId)
+  ]);
+
+  await writeAuditLog(env, user.id, 'VOID_TRANSACTION', 'TRANSACTION', txId, { reversalId, reason, amount: tx.amount, type: tx.type });
+
+  return jsonOk({ reversalTxId: reversalId, balanceAfterSatang: refreshed.balance });
+}
+
 export async function handleListTransactions(request, env) {
   const { error } = await requirePermission(request, env, 'CAN_VIEW_TRANSACTIONS');
   if (error) return error;

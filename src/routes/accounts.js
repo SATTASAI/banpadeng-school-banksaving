@@ -1,4 +1,5 @@
 import { requirePermission, newId, writeAuditLog, jsonOk, jsonError } from '../auth.js';
+import { memberHasOpenLoan } from './loans.js';
 
 export async function handleSearchAccounts(request, env) {
   const { user, error } = await requirePermission(request, env, 'CAN_VIEW_TRANSACTIONS');
@@ -10,7 +11,7 @@ export async function handleSearchAccounts(request, env) {
 
   const like = `%${q}%`;
   const { results } = await env.DB.prepare(
-    `SELECT a.id, a.account_no, a.account_type, a.status, a.balance,
+    `SELECT a.id, a.account_no, a.account_type, a.status, a.balance, m.id as member_id,
             m.school_student_id, m.prefix, m.first_name, m.last_name, m.grade, m.room
      FROM accounts a JOIN members m ON m.id = a.member_id
      WHERE a.status = 'ACTIVE' AND (
@@ -28,6 +29,7 @@ export async function handleSearchAccounts(request, env) {
       accountType: r.account_type,
       status: r.status,
       balance: r.balance,
+      memberId: r.member_id,
       fullName: `${r.prefix || ''}${r.first_name} ${r.last_name}`.trim(),
       schoolStudentId: r.school_student_id,
       grade: r.grade,
@@ -97,6 +99,28 @@ export async function handleOpenAccount(request, env) {
   });
 
   return jsonOk({ accountId, accountNo, memberId });
+}
+
+export async function handleCloseAccount(request, env, accountId) {
+  const { user, error } = await requirePermission(request, env, 'CAN_CLOSE_ACCOUNT');
+  if (error) return error;
+
+  const account = await env.DB.prepare('SELECT * FROM accounts WHERE id = ?').bind(accountId).first();
+  if (!account) return jsonError('ไม่พบบัญชี', 404);
+  if (account.status !== 'ACTIVE') return jsonError('บัญชีนี้ปิดไปแล้ว');
+  if (account.balance !== 0) {
+    return jsonError(`ต้องถอนยอดคงเหลือให้เป็น 0 บาทก่อนปิดบัญชี (ปัจจุบันมียอด ${(account.balance / 100).toLocaleString('th-TH', { minimumFractionDigits: 2 })} บาท)`);
+  }
+
+  const hasOpenLoan = await memberHasOpenLoan(env, account.member_id);
+  if (hasOpenLoan) return jsonError('ผู้ถือบัญชีนี้ยังมีเงินกู้ค้างอยู่ ไม่สามารถปิดบัญชีได้จนกว่าจะปิดยอดเงินกู้ก่อน');
+
+  const now = Date.now();
+  await env.DB.prepare("UPDATE accounts SET status = 'CLOSED', closed_at = ?, updated_at = ? WHERE id = ?")
+    .bind(now, now, accountId).run();
+
+  await writeAuditLog(env, user.id, 'CLOSE_ACCOUNT', 'ACCOUNT', accountId, {});
+  return jsonOk({ accountId });
 }
 
 async function generateAccountNo(env) {

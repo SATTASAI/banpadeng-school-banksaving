@@ -114,6 +114,16 @@
   .badge.open { background: var(--success-bg); color: var(--success); }
   .badge.closed { background: var(--danger-bg); color: var(--danger); }
   .badge.role { background: var(--primary-light); color: var(--primary-dark); }
+  .badge.pending { background: #fef3c7; color: #92400e; }
+  .badge.partial { background: #dbeafe; color: #1d4ed8; }
+
+  .subcard { background: var(--background); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 14px; margin-top: 12px; }
+  .subcard h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+  .row-flex { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tx-mini-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #eef0fb; font-size: 12.5px; }
+  .tx-mini-row:last-child { border-bottom: none; }
+  .tx-mini-row button { background: var(--danger-bg); color: var(--danger); border: none; padding: 4px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; font-family: inherit; font-weight: 600; }
+  button.small { margin-top: 0; padding: 7px 12px; font-size: 12.5px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th { text-align: left; padding: 9px 8px; border-bottom: 1.5px solid var(--border); color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px; }
@@ -206,6 +216,19 @@
         <button class="primary danger" id="withdrawBtn">ถอนเงิน</button>
       </div>
       <div class="msg" id="txMsg"></div>
+
+      <div class="subcard" id="closeAccountBox" style="display:none;">
+        <h3>ปิดบัญชี</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:8px;">ต้องถอนยอดคงเหลือให้เป็น 0 บาทและไม่มีเงินกู้ค้างก่อนจึงจะปิดบัญชีได้</p>
+        <button class="primary danger small" id="closeAccountBtn">ปิดบัญชีนี้</button>
+        <div class="msg" id="closeAccountMsg"></div>
+      </div>
+
+      <div class="subcard" id="recentTxBox" style="display:none;">
+        <h3>รายการล่าสุด (แก้ไข/ยกเลิกรายการ)</h3>
+        <div id="recentTxList"></div>
+        <div class="msg" id="voidTxMsg"></div>
+      </div>
     </div>
   </section>
 
@@ -249,6 +272,88 @@
       <select id="newRole"><option value="TELLER">TELLER</option><option value="ADMIN">ADMIN</option></select>
       <button class="primary" id="createUserBtn">สร้างผู้ใช้งาน</button>
       <div class="msg" id="createUserMsg"></div>
+    </div>
+  </section>
+
+  <!-- LOANS -->
+  <section class="pane" data-pane="loans">
+    <div class="card">
+      <h2>ขอกู้เงินใหม่</h2>
+      <label>ค้นหาผู้กู้ (จากบัญชีเงินฝาก)</label>
+      <input id="loanSearchInput" placeholder="ชื่อ, รหัสนักเรียน หรือเลขบัญชี">
+      <div id="loanSearchResults"></div>
+      <div id="loanApplicantBox" class="subcard" style="display:none;">
+        <h3>ผู้กู้: <span id="loanApplicantName"></span></h3>
+        <label>ประเภทเงินกู้</label>
+        <select id="loanProductSelect"></select>
+        <label>วงเงินกู้ (บาท)</label>
+        <input id="loanPrincipalInput" type="number" min="0" step="1">
+        <label>จำนวนงวด (เดือน)</label>
+        <input id="loanTermInput" type="number" min="1" max="60" step="1" value="10">
+        <label>หมายเหตุ</label>
+        <input id="loanNoteInput" maxlength="300">
+        <button class="primary small" id="loanApplySubmit" style="margin-top:14px;">ยื่นขอกู้</button>
+        <div class="msg" id="loanApplyMsg"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>รายการเงินกู้</h2>
+      <div class="row-flex" style="margin-bottom:10px;">
+        <select id="loanStatusFilter" style="max-width:220px;">
+          <option value="">ทุกสถานะ</option>
+          <option value="PENDING">รออนุมัติ</option>
+          <option value="APPROVED">อนุมัติแล้ว (รอเบิกจ่าย)</option>
+          <option value="DISBURSED">เบิกจ่ายแล้ว (กำลังผ่อน)</option>
+          <option value="CLOSED">ปิดบัญชีแล้ว</option>
+          <option value="REJECTED">ไม่อนุมัติ</option>
+        </select>
+        <button class="primary small" id="loanRefreshBtn">รีเฟรช</button>
+      </div>
+      <div id="loanList">กำลังโหลด...</div>
+    </div>
+
+    <div class="card" id="loanDetailCard" style="display:none;">
+      <h2>รายละเอียดเงินกู้: <span id="loanDetailNo"></span></h2>
+      <div id="loanDetailBody"></div>
+    </div>
+
+    <div class="card">
+      <h2>ประเภทเงินกู้ (Admin)</h2>
+      <div id="loanProductList"></div>
+      <div class="subcard">
+        <h3>เพิ่มประเภทเงินกู้</h3>
+        <label>ชื่อ</label><input id="lpName">
+        <label>วิธีคิดดอกเบี้ย</label>
+        <select id="lpMethod"><option value="FLAT">คงที่ (Flat)</option><option value="DECLINING">ลดต้นลดดอก</option></select>
+        <label>อัตราดอกเบี้ยต่อปี (%)</label>
+        <input id="lpRate" type="number" min="0" step="0.01" value="0">
+        <label>ค่าปรับล่าช้าต่องวด (บาท)</label>
+        <input id="lpLateFee" type="number" min="0" step="1" value="0">
+        <label>วงเงินกู้สูงสุด (บาท, เว้นว่างได้)</label>
+        <input id="lpMax" type="number" min="0" step="1">
+        <button class="primary small" id="lpCreateBtn" style="margin-top:14px;">เพิ่มประเภทเงินกู้</button>
+        <div class="msg" id="lpMsg"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CASH HANDOVER -->
+  <section class="pane" data-pane="handover">
+    <div class="card">
+      <h2>ส่งมอบเงินสด</h2>
+      <label>ส่งมอบให้ผู้ใช้งาน</label>
+      <select id="hoToUser"></select>
+      <label>จำนวนเงิน (บาท)</label>
+      <input id="hoAmount" type="number" min="0" step="0.01">
+      <label>หมายเหตุ</label>
+      <input id="hoNote" maxlength="300">
+      <button class="primary" id="hoSubmit">ส่งมอบ</button>
+      <div class="msg" id="hoMsg"></div>
+    </div>
+    <div class="card">
+      <h2>ประวัติการส่งมอบเงินสด</h2>
+      <div id="hoList">กำลังโหลด...</div>
     </div>
   </section>
 </main>
@@ -299,6 +404,8 @@
   const TABS = [
     { key: 'bank', label: 'ฝาก-ถอน', permission: null },
     { key: 'open-account', label: 'เปิดบัญชี', permission: 'CAN_OPEN_ACCOUNT' },
+    { key: 'loans', label: 'เงินกู้', permission: 'CAN_MANAGE_LOANS' },
+    { key: 'handover', label: 'ส่งมอบเงินสด', permission: 'CAN_HANDOVER_CASH' },
     { key: 'admin', label: 'ผู้ใช้งาน', permission: 'CAN_MANAGE_USERS' }
   ];
 
@@ -320,6 +427,8 @@
     document.querySelectorAll('nav button').forEach((b) => b.classList.remove('active'));
     if (btn) btn.classList.add('active');
     if (key === 'admin') loadUsers();
+    if (key === 'loans') { loadLoanProducts(); loadLoans(); }
+    if (key === 'handover') { loadHandoverUsers(); loadHandovers(); }
   }
 
   async function init() {
@@ -403,6 +512,47 @@
     document.getElementById('selectedAccountLabel').textContent = selectedAccount.fullName + ' (' + selectedAccount.accountNo + ')';
     document.getElementById('selectedAccountBalance').textContent = money(selectedAccount.balance);
     document.getElementById('txMsg').textContent = '';
+
+    document.getElementById('closeAccountBox').style.display = hasPermission('CAN_CLOSE_ACCOUNT') ? 'block' : 'none';
+    document.getElementById('closeAccountMsg').textContent = '';
+    document.getElementById('recentTxBox').style.display = hasPermission('CAN_CORRECT_TRANSACTION') ? 'block' : 'none';
+    if (hasPermission('CAN_CORRECT_TRANSACTION')) loadRecentTx();
+  };
+
+  document.getElementById('closeAccountBtn').onclick = async function() {
+    const msg = document.getElementById('closeAccountMsg');
+    if (!selectedAccount) return;
+    const res = await api('/api/accounts/' + encodeURIComponent(selectedAccount.accountId) + '/close', { method: 'POST', body: JSON.stringify({}) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'ปิดบัญชีสำเร็จ' : res.message;
+    if (res.success) { document.getElementById('selectedAccountCard').style.display = 'none'; runSearch(document.getElementById('searchInput').value); }
+  };
+
+  async function loadRecentTx() {
+    const box = document.getElementById('recentTxList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/transactions?accountId=' + encodeURIComponent(selectedAccount.accountId) + '&limit=10');
+    if (!res.success) { box.textContent = res.message; return; }
+    const txs = res.transactions || [];
+    box.innerHTML = txs.length ? txs.map((t) => `
+      <div class="tx-mini-row">
+        <span>${t.type === 'DEPOSIT' ? 'ฝาก' : t.type === 'WITHDRAW' ? 'ถอน' : escapeHtml(t.type)} ${money(t.amountSatang)} บ. ${t.note ? '(' + escapeHtml(t.note) + ')' : ''}</span>
+        ${['DEPOSIT', 'WITHDRAW'].includes(t.type) ? `<button onclick="voidTx('${t.txId}')">ยกเลิก</button>` : ''}
+      </div>`).join('') : '<p class="empty-hint">ไม่มีรายการ</p>';
+  }
+
+  window.voidTx = async function(txId) {
+    const reason = prompt('เหตุผลในการยกเลิกรายการนี้:');
+    if (!reason) return;
+    const msg = document.getElementById('voidTxMsg');
+    const res = await api('/api/transactions/' + encodeURIComponent(txId) + '/void', { method: 'POST', body: JSON.stringify({ reason }) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'ยกเลิกรายการสำเร็จ' : res.message;
+    if (res.success) {
+      selectedAccount.balance = res.balanceAfterSatang;
+      document.getElementById('selectedAccountBalance').textContent = money(selectedAccount.balance);
+      loadRecentTx();
+    }
   };
 
   async function submitTx(type) {
@@ -512,6 +662,235 @@
     msg.className = 'msg success';
     msg.textContent = 'เปลี่ยนรหัสผ่านสำเร็จ';
     setTimeout(() => document.getElementById('changePasswordModal').classList.add('hidden'), 1000);
+  };
+
+  // ---- LOANS -----------------------------------------------------------
+
+  let loanProducts = [];
+  let loanApplicant = null;
+
+  async function loadLoanProducts() {
+    const res = await api('/api/loan-products');
+    const box = document.getElementById('loanProductList');
+    if (!res.success) { box.textContent = res.message; return; }
+    loanProducts = res.loanProducts || [];
+    const select = document.getElementById('loanProductSelect');
+    select.innerHTML = loanProducts.map((p) => `<option value="${escapeHtml(p.loanProductId)}">${escapeHtml(p.name)} (${p.interestMethod === 'FLAT' ? 'คงที่' : 'ลดต้นลดดอก'} ${p.annualInterestRatePercent}%/ปี)</option>`).join('');
+    box.innerHTML = loanProducts.length ? `<table><thead><tr><th>ชื่อ</th><th>วิธีคิดดอกเบี้ย</th><th>อัตรา/ปี</th><th>ค่าปรับ/งวด</th></tr></thead><tbody>
+      ${loanProducts.map((p) => `<tr><td>${escapeHtml(p.name)}</td><td>${p.interestMethod === 'FLAT' ? 'คงที่' : 'ลดต้นลดดอก'}</td><td>${p.annualInterestRatePercent}%</td><td>${money(p.lateFeeSatang)} บ.</td></tr>`).join('')}
+    </tbody></table>` : '<p class="empty-hint">ยังไม่มีประเภทเงินกู้ เพิ่มด้านล่าง</p>';
+  }
+
+  document.getElementById('lpCreateBtn').onclick = async function() {
+    const msg = document.getElementById('lpMsg');
+    const payload = {
+      name: document.getElementById('lpName').value,
+      interestMethod: document.getElementById('lpMethod').value,
+      annualInterestRatePercent: Number(document.getElementById('lpRate').value || 0),
+      lateFeeSatang: Math.round(Number(document.getElementById('lpLateFee').value || 0) * 100),
+      maxPrincipalSatang: document.getElementById('lpMax').value ? Math.round(Number(document.getElementById('lpMax').value) * 100) : null
+    };
+    const res = await api('/api/loan-products', { method: 'POST', body: JSON.stringify(payload) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'เพิ่มประเภทเงินกู้สำเร็จ' : res.message;
+    if (res.success) { document.getElementById('lpName').value = ''; loadLoanProducts(); }
+  };
+
+  let loanSearchTimer = null;
+  document.getElementById('loanSearchInput').addEventListener('input', function(e) {
+    clearTimeout(loanSearchTimer);
+    const q = e.target.value;
+    loanSearchTimer = setTimeout(() => runLoanSearch(q), 300);
+  });
+
+  async function runLoanSearch(q) {
+    const box = document.getElementById('loanSearchResults');
+    if (!q.trim()) { box.innerHTML = ''; return; }
+    const res = await api('/api/accounts/search?q=' + encodeURIComponent(q));
+    const accounts = res.accounts || [];
+    box.innerHTML = accounts.length
+      ? accounts.map((a, i) => `
+          <div class="result-row" onclick="selectLoanApplicant(${i})">
+            <div class="result-name-wrap">
+              <div class="avatar">${escapeHtml(initials(a.fullName))}</div>
+              <div><div class="result-name">${escapeHtml(a.fullName)}</div><div class="result-sub">${escapeHtml(a.accountNo)}</div></div>
+            </div>
+          </div>`).join('')
+      : '<p class="empty-hint">ไม่พบบัญชี</p>';
+    box.dataset.accounts = JSON.stringify(accounts);
+  }
+
+  window.selectLoanApplicant = function(index) {
+    const accounts = JSON.parse(document.getElementById('loanSearchResults').dataset.accounts || '[]');
+    loanApplicant = accounts[index];
+    if (!loanApplicant) return;
+    document.getElementById('loanApplicantBox').style.display = 'block';
+    document.getElementById('loanApplicantName').textContent = loanApplicant.fullName + ' (' + loanApplicant.accountNo + ')';
+    document.getElementById('loanApplyMsg').textContent = '';
+  };
+
+  document.getElementById('loanApplySubmit').onclick = async function() {
+    const msg = document.getElementById('loanApplyMsg');
+    if (!loanApplicant) { msg.className = 'msg error'; msg.textContent = 'กรุณาเลือกผู้กู้ก่อน'; return; }
+    const payload = {
+      memberId: loanApplicant.memberId,
+      loanProductId: document.getElementById('loanProductSelect').value,
+      principalSatang: Math.round(Number(document.getElementById('loanPrincipalInput').value || 0) * 100),
+      termMonths: Number(document.getElementById('loanTermInput').value || 0),
+      note: document.getElementById('loanNoteInput').value
+    };
+    const res = await api('/api/loans', { method: 'POST', body: JSON.stringify(payload) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'ยื่นขอกู้สำเร็จ เลขที่ ' + res.loanNo : res.message;
+    if (res.success) loadLoans();
+  };
+
+  document.getElementById('loanStatusFilter').onchange = loadLoans;
+  document.getElementById('loanRefreshBtn').onclick = loadLoans;
+
+  const LOAN_STATUS_LABEL = { PENDING: 'รออนุมัติ', APPROVED: 'อนุมัติแล้ว', DISBURSED: 'กำลังผ่อน', CLOSED: 'ปิดบัญชีแล้ว', REJECTED: 'ไม่อนุมัติ' };
+  const LOAN_STATUS_BADGE = { PENDING: 'pending', APPROVED: 'partial', DISBURSED: 'open', CLOSED: 'role', REJECTED: 'closed' };
+
+  async function loadLoans() {
+    const box = document.getElementById('loanList');
+    box.textContent = 'กำลังโหลด...';
+    const status = document.getElementById('loanStatusFilter').value;
+    const res = await api('/api/loans' + (status ? '?status=' + encodeURIComponent(status) : ''));
+    if (!res.success) { box.textContent = res.message; return; }
+    const loans = res.loans || [];
+    box.innerHTML = loans.length ? loans.map((l) => `
+      <div class="result-row" onclick="openLoanDetail('${l.loanId}')">
+        <div class="result-name-wrap">
+          <div class="avatar">${escapeHtml(initials(l.memberName))}</div>
+          <div><div class="result-name">${escapeHtml(l.memberName)} — ${escapeHtml(l.loanNo)}</div><div class="result-sub">${escapeHtml(l.productName)} • ${money(l.principalSatang)} บ. / ${l.termMonths} งวด</div></div>
+        </div>
+        <span class="badge ${LOAN_STATUS_BADGE[l.status] || 'role'}">${LOAN_STATUS_LABEL[l.status] || l.status}</span>
+      </div>`).join('') : '<p class="empty-hint">ไม่พบเงินกู้</p>';
+  }
+
+  window.openLoanDetail = async function(loanId) {
+    const res = await api('/api/loans/' + encodeURIComponent(loanId));
+    if (!res.success) { alert(res.message); return; }
+    const { loan, schedule, payments } = res;
+    document.getElementById('loanDetailCard').style.display = 'block';
+    document.getElementById('loanDetailNo').textContent = loan.loanNo;
+
+    const actions = [];
+    if (loan.status === 'PENDING' && hasPermission('CAN_APPROVE_LOAN')) {
+      actions.push(`<button class="primary small" onclick="approveLoan('${loan.loanId}')">อนุมัติ</button>`);
+      actions.push(`<button class="primary danger small" onclick="rejectLoan('${loan.loanId}')">ไม่อนุมัติ</button>`);
+    }
+    let disburseForm = '';
+    if (loan.status === 'APPROVED' && hasPermission('CAN_DISBURSE_LOAN')) {
+      disburseForm = `<div class="subcard"><h3>เบิกจ่ายเงินกู้</h3>
+        <label>เลขบัญชีปลายทาง (ของผู้กู้)</label><input id="disburseAccountId" placeholder="วางรหัสบัญชี (accountId)">
+        <button class="primary small" style="margin-top:10px;" onclick="disburseLoan('${loan.loanId}')">เบิกจ่าย ${money(loan.principalSatang)} บาท</button>
+        <div class="msg" id="disburseMsg"></div></div>`;
+    }
+    let paymentForm = '';
+    if (loan.status === 'DISBURSED' && hasPermission('CAN_RECEIVE_LOAN_PAYMENT')) {
+      paymentForm = `<div class="subcard"><h3>รับชำระเงินกู้</h3>
+        <label>จำนวนเงิน (บาท)</label><input id="loanPaymentAmount" type="number" min="0" step="0.01">
+        <button class="primary small" style="margin-top:10px;" onclick="payLoan('${loan.loanId}')">รับชำระ</button>
+        <div class="msg" id="loanPaymentMsg"></div></div>`;
+    }
+
+    const scheduleRows = schedule.map((s) => `
+      <tr>
+        <td>${s.installmentNo}</td>
+        <td>${new Date(s.dueDate).toLocaleDateString('th-TH')}</td>
+        <td>${money(s.principalDueSatang)}</td>
+        <td>${money(s.interestDueSatang)}</td>
+        <td>${money(s.lateFeeDueSatang)}</td>
+        <td><span class="badge ${s.status === 'PAID' ? 'open' : s.status === 'PARTIAL' ? 'partial' : 'pending'}">${s.status === 'PAID' ? 'ชำระแล้ว' : s.status === 'PARTIAL' ? 'ชำระบางส่วน' : 'ค้างชำระ'}</span></td>
+      </tr>`).join('');
+
+    document.getElementById('loanDetailBody').innerHTML = `
+      <p style="font-size:13px;margin-bottom:10px;">${escapeHtml(loan.memberName || '')} • ${escapeHtml(loan.productName || '')} • สถานะ: <span class="badge ${LOAN_STATUS_BADGE[loan.status] || 'role'}">${LOAN_STATUS_LABEL[loan.status] || loan.status}</span></p>
+      ${loan.rejectedReason ? `<p class="msg error">เหตุผลไม่อนุมัติ: ${escapeHtml(loan.rejectedReason)}</p>` : ''}
+      <div class="row-flex">${actions.join('')}</div>
+      ${disburseForm}
+      ${paymentForm}
+      ${schedule.length ? `<div style="overflow-x:auto;margin-top:14px;"><table><thead><tr><th>งวด</th><th>ครบกำหนด</th><th>เงินต้น</th><th>ดอกเบี้ย</th><th>ค่าปรับ</th><th>สถานะ</th></tr></thead><tbody>${scheduleRows}</tbody></table></div>` : ''}
+    `;
+  };
+
+  window.approveLoan = async function(loanId) {
+    const res = await api('/api/loans/' + encodeURIComponent(loanId) + '/approve', { method: 'POST', body: JSON.stringify({}) });
+    if (!res.success) { alert(res.message); return; }
+    openLoanDetail(loanId); loadLoans();
+  };
+  window.rejectLoan = async function(loanId) {
+    const reason = prompt('เหตุผลที่ไม่อนุมัติ:');
+    if (!reason) return;
+    const res = await api('/api/loans/' + encodeURIComponent(loanId) + '/reject', { method: 'POST', body: JSON.stringify({ reason }) });
+    if (!res.success) { alert(res.message); return; }
+    openLoanDetail(loanId); loadLoans();
+  };
+  window.disburseLoan = async function(loanId) {
+    const accountId = document.getElementById('disburseAccountId').value.trim();
+    const msg = document.getElementById('disburseMsg');
+    const res = await api('/api/loans/' + encodeURIComponent(loanId) + '/disburse', { method: 'POST', body: JSON.stringify({ accountId }) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'เบิกจ่ายสำเร็จ' : res.message;
+    if (res.success) { openLoanDetail(loanId); loadLoans(); }
+  };
+  window.payLoan = async function(loanId) {
+    const amountBaht = Number(document.getElementById('loanPaymentAmount').value || 0);
+    const msg = document.getElementById('loanPaymentMsg');
+    if (!amountBaht || amountBaht <= 0) { msg.className = 'msg error'; msg.textContent = 'กรุณากรอกจำนวนเงิน'; return; }
+    const res = await api('/api/loans/' + encodeURIComponent(loanId) + '/payment', {
+      method: 'POST',
+      body: JSON.stringify({ amountSatang: Math.round(amountBaht * 100), requestId: crypto.randomUUID() })
+    });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? (res.loanClosed ? 'ชำระสำเร็จ ปิดบัญชีเงินกู้แล้ว' : 'รับชำระสำเร็จ') : res.message;
+    if (res.success) { openLoanDetail(loanId); loadLoans(); }
+  };
+
+  // ---- CASH HANDOVER -----------------------------------------------------
+
+  async function loadHandoverUsers() {
+    const res = await api('/api/users/active');
+    const select = document.getElementById('hoToUser');
+    if (!res.success) return;
+    select.innerHTML = (res.users || [])
+      .filter((u) => u.userId !== currentUser.userId)
+      .map((u) => `<option value="${escapeHtml(u.userId)}">${escapeHtml(u.displayName)}</option>`).join('');
+  }
+
+  document.getElementById('hoSubmit').onclick = async function() {
+    const msg = document.getElementById('hoMsg');
+    const payload = {
+      toUserId: document.getElementById('hoToUser').value,
+      amountSatang: Math.round(Number(document.getElementById('hoAmount').value || 0) * 100),
+      note: document.getElementById('hoNote').value
+    };
+    const res = await api('/api/cash-handover', { method: 'POST', body: JSON.stringify(payload) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'ส่งมอบเงินสดสำเร็จ รอผู้รับยืนยัน' : res.message;
+    if (res.success) { document.getElementById('hoAmount').value = ''; document.getElementById('hoNote').value = ''; loadHandovers(); }
+  };
+
+  async function loadHandovers() {
+    const box = document.getElementById('hoList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/cash-handover');
+    if (!res.success) { box.textContent = res.message; return; }
+    const list = res.handovers || [];
+    box.innerHTML = list.length ? list.map((h) => `
+      <div class="tx-mini-row">
+        <span>${escapeHtml(h.fromName)} → ${escapeHtml(h.toName)}: ${money(h.amountSatang)} บ. ${h.note ? '(' + escapeHtml(h.note) + ')' : ''}
+          <span class="badge ${h.status === 'CONFIRMED' ? 'open' : 'pending'}" style="margin-left:6px;">${h.status === 'CONFIRMED' ? 'ยืนยันแล้ว' : 'รอยืนยัน'}</span>
+        </span>
+        ${h.canConfirm ? `<button onclick="confirmHandover('${h.handoverId}')" style="background:var(--success-bg);color:var(--success);">ยืนยันรับ</button>` : ''}
+      </div>`).join('') : '<p class="empty-hint">ไม่มีประวัติ</p>';
+  }
+
+  window.confirmHandover = async function(id) {
+    const res = await api('/api/cash-handover/' + encodeURIComponent(id) + '/confirm', { method: 'POST', body: JSON.stringify({}) });
+    if (!res.success) { alert(res.message); return; }
+    loadHandovers();
   };
 
   init();
