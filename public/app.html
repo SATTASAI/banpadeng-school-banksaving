@@ -38,13 +38,45 @@
   .badge.closed { background: #fee2e2; color: #b91c1c; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px; border-bottom: 1px solid #f1f5f9; }
+  header .who-wrap { display: flex; align-items: center; gap: 10px; }
+  header button.link {
+    background: rgba(255,255,255,.15); border: none; color: #fff;
+    padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+  }
+  header button.link:hover { background: rgba(255,255,255,.25); }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(15,23,42,.45);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+  }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: #fff; border-radius: 16px; padding: 22px; width: 100%; max-width: 380px; }
+  .modal-box h2 { font-size: 16px; margin-bottom: 14px; }
 </style>
 </head>
 <body>
 <header>
   <h1>BPD School Bank</h1>
-  <div class="who" id="whoBox"></div>
+  <div class="who-wrap">
+    <div class="who" id="whoBox"></div>
+    <button class="link" id="changePasswordOpenBtn">🔑 เปลี่ยนรหัสผ่าน</button>
+    <button class="link" id="logoutBtn">ออกจากระบบ</button>
+  </div>
 </header>
+
+<div class="modal-overlay hidden" id="changePasswordModal">
+  <div class="modal-box">
+    <h2>เปลี่ยนรหัสผ่าน</h2>
+    <label>รหัสผ่านปัจจุบัน</label>
+    <input id="cpCurrent" type="password">
+    <label>รหัสผ่านใหม่ (4–100 ตัวอักษร)</label>
+    <input id="cpNew" type="password">
+    <label>ยืนยันรหัสผ่านใหม่</label>
+    <input id="cpConfirm" type="password">
+    <div class="msg" id="cpMsg"></div>
+    <button class="primary" id="cpSubmit">บันทึกรหัสผ่านใหม่</button>
+    <button class="primary" id="cpCancel" style="background:#94a3b8;">ยกเลิก</button>
+  </div>
+</div>
 
 <nav id="mainNav"></nav>
 
@@ -333,6 +365,46 @@
     msg.className = res.success ? 'msg success' : 'msg error';
     msg.textContent = res.success ? 'สร้างผู้ใช้งานสำเร็จ' : res.message;
     if (res.success) loadUsers();
+  };
+
+  document.getElementById('logoutBtn').onclick = async function() {
+    await api('/api/logout', { method: 'POST', body: JSON.stringify({}) }).catch(() => {});
+    localStorage.removeItem('BPD_TOKEN');
+    localStorage.removeItem('BPD_USER');
+    window.location.href = '/login.html';
+  };
+
+  document.getElementById('changePasswordOpenBtn').onclick = function() {
+    document.getElementById('cpCurrent').value = '';
+    document.getElementById('cpNew').value = '';
+    document.getElementById('cpConfirm').value = '';
+    document.getElementById('cpMsg').textContent = '';
+    document.getElementById('changePasswordModal').classList.remove('hidden');
+  };
+
+  document.getElementById('cpCancel').onclick = function() {
+    document.getElementById('changePasswordModal').classList.add('hidden');
+  };
+
+  document.getElementById('cpSubmit').onclick = async function() {
+    const msg = document.getElementById('cpMsg');
+    const currentPassword = document.getElementById('cpCurrent').value;
+    const newPassword = document.getElementById('cpNew').value;
+    const confirmPassword = document.getElementById('cpConfirm').value;
+
+    if (!currentPassword) { msg.className = 'msg error'; msg.textContent = 'กรุณากรอกรหัสผ่านปัจจุบัน'; return; }
+    if (!newPassword || newPassword.length < 4 || newPassword.length > 100) {
+      msg.className = 'msg error'; msg.textContent = 'รหัสผ่านใหม่ต้องมีความยาว 4–100 ตัวอักษร'; return;
+    }
+    if (newPassword !== confirmPassword) { msg.className = 'msg error'; msg.textContent = 'ยืนยันรหัสผ่านไม่ตรงกัน'; return; }
+    if (newPassword === currentPassword) { msg.className = 'msg error'; msg.textContent = 'รหัสผ่านใหม่ต้องไม่เหมือนรหัสเดิม'; return; }
+
+    const res = await api('/api/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) });
+    if (!res.success) { msg.className = 'msg error'; msg.textContent = res.message; return; }
+
+    msg.className = 'msg success';
+    msg.textContent = 'เปลี่ยนรหัสผ่านสำเร็จ';
+    setTimeout(() => document.getElementById('changePasswordModal').classList.add('hidden'), 1000);
   };
 
   init();
