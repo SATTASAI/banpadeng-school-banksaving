@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "banpadeng-school-bank",
+  "main": "src/index.js",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS"
+  },
+  // IMPORTANT: the D1 binding must be declared here, not only set up from
+  // the Cloudflare dashboard -- a dashboard-only binding gets wiped on the
+  // next git-triggered deploy (same lesson learned on banpadeng-school-db).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "banpadeng-school-bank-db",
+      "database_id": "REPLACE_WITH_REAL_DATABASE_ID"
+    }
+  ]
+}

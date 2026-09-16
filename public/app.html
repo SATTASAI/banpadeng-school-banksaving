@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BPD School Bank</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f4f7fb; color: #1e293b; }
+  header {
+    background: #4338ca; color: #fff; padding: 14px 20px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+  }
+  header h1 { font-size: 16px; }
+  header .who { font-size: 13px; opacity: .9; }
+  nav { display: flex; gap: 6px; padding: 10px 20px; background: #fff; border-bottom: 1px solid #e2e8f0; flex-wrap: wrap; }
+  nav button {
+    border: none; background: #eef2ff; color: #4338ca; padding: 8px 14px;
+    border-radius: 8px; font-size: 13px; cursor: pointer; font-weight: 600;
+  }
+  nav button.active { background: #4338ca; color: #fff; }
+  main { max-width: 900px; margin: 0 auto; padding: 20px; }
+  .pane { display: none; }
+  .pane.active { display: block; }
+  .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(15,23,42,.05); }
+  .card h2 { font-size: 15px; margin-bottom: 12px; }
+  label { display: block; font-size: 12px; color: #64748b; margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 14px; }
+  button.primary { margin-top: 14px; background: #4338ca; color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; }
+  button.primary:disabled { opacity: .6; }
+  .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .msg.error { color: #dc2626; }
+  .msg.success { color: #15803d; }
+  .result-row { padding: 10px 0; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; gap: 8px; cursor: pointer; }
+  .result-row:hover { background: #f8fafc; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .badge.open { background: #dcfce7; color: #15803d; }
+  .badge.closed { background: #fee2e2; color: #b91c1c; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid #f1f5f9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BPD School Bank</h1>
+  <div class="who" id="whoBox"></div>
+</header>
+
+<nav id="mainNav"></nav>
+
+<main>
+  <!-- BANK OPERATIONS -->
+  <section class="pane" data-pane="bank">
+    <div class="card">
+      <h2>สถานะ Bank Session</h2>
+      <div id="sessionStatus">กำลังโหลด...</div>
+      <div id="sessionControls"></div>
+    </div>
+
+    <div class="card">
+      <h2>ค้นหาบัญชี</h2>
+      <input id="searchInput" placeholder="ชื่อ, รหัสนักเรียน หรือเลขบัญชี">
+      <div id="searchResults"></div>
+    </div>
+
+    <div class="card" id="selectedAccountCard" style="display:none;">
+      <h2>บัญชีที่เลือก: <span id="selectedAccountLabel"></span></h2>
+      <p>ยอดคงเหลือ: <strong id="selectedAccountBalance"></strong> บาท</p>
+
+      <label>จุดทำรายการ</label>
+      <select id="locationSelect"></select>
+
+      <label>จำนวนเงิน (บาท)</label>
+      <input id="amountInput" type="number" min="0" step="0.01">
+
+      <label>หมายเหตุ</label>
+      <input id="noteInput" maxlength="300">
+
+      <button class="primary" id="depositBtn">ฝากเงิน</button>
+      <button class="primary" id="withdrawBtn" style="background:#dc2626;">ถอนเงิน</button>
+      <div class="msg" id="txMsg"></div>
+    </div>
+  </section>
+
+  <!-- OPEN ACCOUNT -->
+  <section class="pane" data-pane="open-account">
+    <div class="card">
+      <h2>เปิดบัญชีใหม่</h2>
+      <label>รหัสนักเรียน (ถ้ามี)</label>
+      <input id="oaSchoolId">
+      <label>คำนำหน้า</label>
+      <input id="oaPrefix" value="เด็กชาย">
+      <label>ชื่อ</label>
+      <input id="oaFirstName">
+      <label>นามสกุล</label>
+      <input id="oaLastName">
+      <label>ชั้น</label>
+      <input id="oaGrade">
+      <label>ห้อง</label>
+      <input id="oaRoom">
+      <label>ประเภทบัญชี</label>
+      <select id="oaType"><option value="SAVINGS">ออมทรัพย์</option><option value="SHARE">ออมหุ้น</option></select>
+      <label>ยอดเปิดบัญชี (บาท)</label>
+      <input id="oaOpening" type="number" min="0" step="0.01" value="0">
+      <button class="primary" id="oaSubmit">เปิดบัญชี</button>
+      <div class="msg" id="oaMsg"></div>
+    </div>
+  </section>
+
+  <!-- ADMIN -->
+  <section class="pane" data-pane="admin">
+    <div class="card">
+      <h2>ผู้ใช้งาน</h2>
+      <div id="userList">กำลังโหลด...</div>
+    </div>
+    <div class="card">
+      <h2>เพิ่มผู้ใช้งาน</h2>
+      <label>Username</label><input id="newUsername">
+      <label>Password</label><input id="newPassword" type="password">
+      <label>ชื่อที่แสดง</label><input id="newDisplayName">
+      <label>Role</label>
+      <select id="newRole"><option value="TELLER">TELLER</option><option value="ADMIN">ADMIN</option></select>
+      <button class="primary" id="createUserBtn">สร้างผู้ใช้งาน</button>
+      <div class="msg" id="createUserMsg"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+  const token = localStorage.getItem('BPD_TOKEN');
+  if (!token) window.location.href = '/login.html';
+
+  let currentUser = null;
+  let permissions = {};
+  let locations = [];
+  let selectedAccount = null;
+
+  function escapeHtml(v) {
+    return String(v ?? '')
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+  }
+
+  function money(satang) {
+    return (Number(satang || 0) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  async function api(path, options) {
+    const res = await fetch(path, {
+      ...options,
+      headers: { 'content-type': 'application/json', 'Authorization': 'Bearer ' + token, ...(options && options.headers) }
+    });
+    const data = await res.json().catch(() => ({ success: false, message: 'Invalid response' }));
+    if (res.status === 401) {
+      localStorage.removeItem('BPD_TOKEN');
+      window.location.href = '/login.html';
+      throw new Error('Session expired');
+    }
+    return data;
+  }
+
+  function hasPermission(p) {
+    return currentUser && (currentUser.role === 'ADMIN' || permissions[p] === true);
+  }
+
+  const TABS = [
+    { key: 'bank', label: 'ฝาก-ถอน', permission: null },
+    { key: 'open-account', label: 'เปิดบัญชี', permission: 'CAN_OPEN_ACCOUNT' },
+    { key: 'admin', label: 'ผู้ใช้งาน', permission: 'CAN_MANAGE_USERS' }
+  ];
+
+  function renderNav() {
+    const nav = document.getElementById('mainNav');
+    nav.innerHTML = '';
+    TABS.forEach(function(tab, index) {
+      if (tab.permission && !hasPermission(tab.permission)) return;
+      const btn = document.createElement('button');
+      btn.textContent = tab.label;
+      btn.className = index === 0 ? 'active' : '';
+      btn.onclick = function() { showPane(tab.key, btn); };
+      nav.appendChild(btn);
+    });
+  }
+
+  function showPane(key, btn) {
+    document.querySelectorAll('.pane').forEach((p) => p.classList.toggle('active', p.dataset.pane === key));
+    document.querySelectorAll('nav button').forEach((b) => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    if (key === 'admin') loadUsers();
+  }
+
+  async function init() {
+    const boot = await api('/api/bootstrap');
+    if (!boot.success) return;
+    currentUser = boot.user;
+    permissions = boot.permissions || {};
+
+    document.getElementById('whoBox').textContent = currentUser.displayName + ' (' + currentUser.role + ')';
+    renderNav();
+    showPane('bank');
+
+    await Promise.all([loadSessionStatus(), loadLocations()]);
+  }
+
+  async function loadLocations() {
+    const res = await api('/api/locations');
+    locations = res.locations || [];
+    const select = document.getElementById('locationSelect');
+    select.innerHTML = locations.map((l) => `<option value="${escapeHtml(l.locationId)}">${escapeHtml(l.name)}</option>`).join('');
+  }
+
+  async function loadSessionStatus() {
+    const res = await api('/api/bank-session/active');
+    const box = document.getElementById('sessionStatus');
+    const controls = document.getElementById('sessionControls');
+    const session = res.bankSession;
+
+    box.innerHTML = session
+      ? '<span class="badge open">เปิดอยู่</span>'
+      : '<span class="badge closed">ปิดอยู่</span>';
+
+    controls.innerHTML = '';
+    if (!session && hasPermission('CAN_OPEN_BANK_SESSION')) {
+      const btn = document.createElement('button');
+      btn.className = 'primary'; btn.textContent = 'เปิด Bank Session';
+      btn.onclick = async () => { await api('/api/bank-session/open', { method: 'POST', body: JSON.stringify({}) }); loadSessionStatus(); };
+      controls.appendChild(btn);
+    }
+    if (session && hasPermission('CAN_CLOSE_BANK_SESSION')) {
+      const btn = document.createElement('button');
+      btn.className = 'primary'; btn.style.background = '#dc2626'; btn.textContent = 'ปิด Bank Session';
+      btn.onclick = async () => { await api('/api/bank-session/close', { method: 'POST', body: JSON.stringify({}) }); loadSessionStatus(); };
+      controls.appendChild(btn);
+    }
+  }
+
+  let searchTimer = null;
+  document.getElementById('searchInput').addEventListener('input', function(e) {
+    clearTimeout(searchTimer);
+    const q = e.target.value;
+    searchTimer = setTimeout(() => runSearch(q), 300);
+  });
+
+  async function runSearch(q) {
+    const box = document.getElementById('searchResults');
+    if (!q.trim()) { box.innerHTML = ''; return; }
+    const res = await api('/api/accounts/search?q=' + encodeURIComponent(q));
+    const accounts = res.accounts || [];
+    box.innerHTML = accounts.length
+      ? accounts.map((a, i) => `
+          <div class="result-row" onclick="selectAccount(${i})">
+            <span>${escapeHtml(a.fullName)} • ${escapeHtml(a.accountNo)}</span>
+            <strong>${money(a.balance)} บ.</strong>
+          </div>`).join('')
+      : '<p style="color:#94a3b8;font-size:13px;">ไม่พบบัญชี</p>';
+    box.dataset.accounts = JSON.stringify(accounts);
+  }
+
+  window.selectAccount = function(index) {
+    const accounts = JSON.parse(document.getElementById('searchResults').dataset.accounts || '[]');
+    selectedAccount = accounts[index];
+    if (!selectedAccount) return;
+    document.getElementById('selectedAccountCard').style.display = 'block';
+    document.getElementById('selectedAccountLabel').textContent = selectedAccount.fullName + ' (' + selectedAccount.accountNo + ')';
+    document.getElementById('selectedAccountBalance').textContent = money(selectedAccount.balance);
+    document.getElementById('txMsg').textContent = '';
+  };
+
+  async function submitTx(type) {
+    const msg = document.getElementById('txMsg');
+    msg.className = 'msg';
+    if (!selectedAccount) { msg.textContent = 'กรุณาเลือกบัญชี'; msg.className = 'msg error'; return; }
+
+    const amountBaht = Number(document.getElementById('amountInput').value || 0);
+    if (!amountBaht || amountBaht <= 0) { msg.textContent = 'กรุณากรอกจำนวนเงิน'; msg.className = 'msg error'; return; }
+
+    const payload = {
+      accountId: selectedAccount.accountId,
+      locationId: document.getElementById('locationSelect').value,
+      amountSatang: Math.round(amountBaht * 100),
+      note: document.getElementById('noteInput').value,
+      requestId: crypto.randomUUID()
+    };
+
+    const res = await api(type === 'DEPOSIT' ? '/api/deposit' : '/api/withdraw', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.success) { msg.textContent = res.message; msg.className = 'msg error'; return; }
+
+    msg.textContent = (type === 'DEPOSIT' ? 'ฝากเงินสำเร็จ ' : 'ถอนเงินสำเร็จ ') + money(res.amountSatang) + ' บาท';
+    msg.className = 'msg success';
+    selectedAccount.balance = res.balanceAfterSatang;
+    document.getElementById('selectedAccountBalance').textContent = money(selectedAccount.balance);
+    document.getElementById('amountInput').value = '';
+  }
+
+  document.getElementById('depositBtn').onclick = () => submitTx('DEPOSIT');
+  document.getElementById('withdrawBtn').onclick = () => submitTx('WITHDRAW');
+
+  document.getElementById('oaSubmit').onclick = async function() {
+    const msg = document.getElementById('oaMsg');
+    const payload = {
+      schoolStudentId: document.getElementById('oaSchoolId').value,
+      prefix: document.getElementById('oaPrefix').value,
+      firstName: document.getElementById('oaFirstName').value,
+      lastName: document.getElementById('oaLastName').value,
+      grade: document.getElementById('oaGrade').value,
+      room: document.getElementById('oaRoom').value,
+      accountType: document.getElementById('oaType').value,
+      openingBalanceSatang: Math.round(Number(document.getElementById('oaOpening').value || 0) * 100)
+    };
+    const res = await api('/api/accounts', { method: 'POST', body: JSON.stringify(payload) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'เปิดบัญชีสำเร็จ เลขบัญชี ' + res.accountNo : res.message;
+  };
+
+  async function loadUsers() {
+    const res = await api('/api/admin/users');
+    const box = document.getElementById('userList');
+    if (!res.success) { box.textContent = res.message; return; }
+    box.innerHTML = `<table><thead><tr><th>ชื่อ</th><th>Username</th><th>Role</th><th>สถานะ</th></tr></thead><tbody>
+      ${res.users.map((u) => `<tr><td>${escapeHtml(u.displayName)}</td><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.role)}</td><td>${u.active ? '🟢' : '🔴'}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+
+  document.getElementById('createUserBtn').onclick = async function() {
+    const msg = document.getElementById('createUserMsg');
+    const payload = {
+      username: document.getElementById('newUsername').value,
+      password: document.getElementById('newPassword').value,
+      displayName: document.getElementById('newDisplayName').value,
+      role: document.getElementById('newRole').value
+    };
+    const res = await api('/api/admin/users', { method: 'POST', body: JSON.stringify(payload) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'สร้างผู้ใช้งานสำเร็จ' : res.message;
+    if (res.success) loadUsers();
+  };
+
+  init();
+</script>
+</body>
+</html>

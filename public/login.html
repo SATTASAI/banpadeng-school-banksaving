@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เข้าสู่ระบบ - BPD School Bank</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #eef2ff, #f8fafc);
+  }
+  .card {
+    width: 100%;
+    max-width: 380px;
+    background: #fff;
+    border-radius: 20px;
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+  }
+  h1 { font-size: 20px; margin-bottom: 4px; color: #1e293b; }
+  p.sub { color: #64748b; font-size: 13px; margin-bottom: 24px; }
+  label { display: block; font-size: 13px; color: #334155; margin: 14px 0 6px; }
+  input {
+    width: 100%; padding: 11px 14px; border: 1px solid #e2e8f0;
+    border-radius: 10px; font-size: 14px;
+  }
+  button {
+    width: 100%; margin-top: 22px; padding: 12px; border: none;
+    border-radius: 10px; background: #4338ca; color: #fff; font-size: 15px;
+    font-weight: 600; cursor: pointer;
+  }
+  button:disabled { opacity: .6; cursor: default; }
+  .error { color: #dc2626; font-size: 13px; margin-top: 12px; min-height: 18px; }
+</style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <h1>BPD School Bank</h1>
+    <p class="sub">เข้าสู่ระบบธนาคารโรงเรียน</p>
+
+    <label for="username">ชื่อผู้ใช้งาน</label>
+    <input id="username" autocomplete="username" required>
+
+    <label for="password">รหัสผ่าน</label>
+    <input id="password" type="password" autocomplete="current-password" required>
+
+    <div class="error" id="errorBox"></div>
+    <button type="submit" id="submitBtn">เข้าสู่ระบบ</button>
+  </form>
+
+<script>
+  function escapeHtml(v) {
+    return String(v ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('submitBtn');
+    const errorBox = document.getElementById('errorBox');
+    errorBox.textContent = '';
+    btn.disabled = true;
+    btn.textContent = 'กำลังเข้าสู่ระบบ...';
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          username: document.getElementById('username').value.trim(),
+          password: document.getElementById('password').value
+        })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        errorBox.textContent = data.message || 'เข้าสู่ระบบไม่สำเร็จ';
+        return;
+      }
+
+      localStorage.setItem('BPD_TOKEN', data.token);
+      localStorage.setItem('BPD_USER', JSON.stringify(data.user));
+      window.location.href = '/app.html';
+    } catch (err) {
+      errorBox.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ กรุณาลองใหม่';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'เข้าสู่ระบบ';
+    }
+  });
+</script>
+</body>
+</html>
