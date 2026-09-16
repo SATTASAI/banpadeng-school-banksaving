@@ -399,6 +399,40 @@
       <div id="gradBatchList">กำลังโหลด...</div>
     </div>
   </section>
+
+  <!-- BACKUP / EXPORT -->
+  <section class="pane" data-pane="backup">
+    <div class="card" id="exportReportsCard" style="display:none;">
+      <h2>ออกรายงาน (CSV)</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">เปิดได้โดยตรงด้วย Excel หรือ Google Sheets</p>
+      <div class="row-flex">
+        <button class="primary small" id="exportTxCsvBtn">ดาวน์โหลดรายการฝาก-ถอนทั้งหมด (.csv)</button>
+        <button class="primary small" id="exportAccountsCsvBtn">ดาวน์โหลดรายชื่อบัญชีทั้งหมด (.csv)</button>
+      </div>
+    </div>
+
+    <div class="card" id="backupCard" style="display:none;">
+      <h2>สำรองฐานข้อมูล (Backup)</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">ดาวน์โหลดสำเนาข้อมูลทั้งหมด (ผู้ใช้งาน, บัญชี, ธุรกรรม, เงินกู้ ฯลฯ) เป็นไฟล์ JSON เก็บไว้เป็นระยะ</p>
+      <button class="primary small" id="backupExportBtn">ดาวน์โหลดไฟล์สำรองข้อมูล</button>
+      <div class="msg" id="backupExportMsg"></div>
+
+      <div class="subcard">
+        <h3 style="color:var(--danger);">กู้คืนฐานข้อมูล (Restore) — คำเตือน: จะลบข้อมูลปัจจุบันทั้งหมดแล้วแทนที่ด้วยไฟล์สำรอง</h3>
+        <label>เลือกไฟล์สำรองข้อมูล (.json)</label>
+        <input type="file" id="restoreFileInput" accept=".json">
+        <label>พิมพ์ข้อความยืนยันให้ตรงทุกตัวอักษร: <strong>ยืนยันกู้คืนฐานข้อมูล</strong></label>
+        <input id="restoreConfirmInput">
+        <button class="primary danger small" id="restoreBtn" style="margin-top:14px;">กู้คืนฐานข้อมูลจากไฟล์นี้</button>
+        <div class="msg" id="restoreMsg"></div>
+      </div>
+
+      <div class="subcard">
+        <h3>ประวัติการสำรอง/กู้คืนข้อมูล</h3>
+        <div id="backupLogList">กำลังโหลด...</div>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -450,6 +484,7 @@
     { key: 'loans', label: 'เงินกู้', permission: 'CAN_MANAGE_LOANS' },
     { key: 'handover', label: 'ส่งมอบเงินสด', permission: 'CAN_HANDOVER_CASH' },
     { key: 'academic', label: 'เลื่อนชั้น/จบการศึกษา', permission: 'CAN_MANAGE_ACADEMIC_YEAR' },
+    { key: 'backup', label: 'สำรอง/ออกรายงาน', permission: null },
     { key: 'admin', label: 'ผู้ใช้งาน', permission: 'CAN_MANAGE_USERS' }
   ];
 
@@ -474,6 +509,7 @@
     if (key === 'loans') { loadLoanProducts(); loadLoans(); }
     if (key === 'handover') { loadHandoverUsers(); loadHandovers(); }
     if (key === 'academic') { loadGradeSummary(); loadGraduationBatches(); }
+    if (key === 'backup') { renderBackupPane(); }
   }
 
   async function init() {
@@ -619,7 +655,8 @@
     const res = await api(type === 'DEPOSIT' ? '/api/deposit' : '/api/withdraw', { method: 'POST', body: JSON.stringify(payload) });
     if (!res.success) { msg.textContent = res.message; msg.className = 'msg error'; return; }
 
-    msg.textContent = (type === 'DEPOSIT' ? 'ฝากเงินสำเร็จ ' : 'ถอนเงินสำเร็จ ') + money(res.amountSatang) + ' บาท';
+    msg.innerHTML = (type === 'DEPOSIT' ? 'ฝากเงินสำเร็จ ' : 'ถอนเงินสำเร็จ ') + money(res.amountSatang) +
+      ` บาท &nbsp; <a href="/receipt.html?id=${encodeURIComponent(res.txId)}" target="_blank" style="color:var(--primary);font-weight:600;">พิมพ์ใบเสร็จ</a>`;
     msg.className = 'msg success';
     selectedAccount.balance = res.balanceAfterSatang;
     document.getElementById('selectedAccountBalance').textContent = money(selectedAccount.balance);
@@ -1026,6 +1063,77 @@
     box.innerHTML = batches.length
       ? batches.map((b) => `<div class="tx-mini-row"><span>ชั้น ${escapeHtml(b.grade)} — ${b.memberCount} คน</span><span class="result-sub">${new Date(b.executedAt).toLocaleString('th-TH')}</span></div>`).join('')
       : '<p class="empty-hint">ยังไม่มีประวัติการดำเนินการ</p>';
+  }
+
+  // ---- BACKUP / EXPORT ---------------------------------------------------
+
+  async function downloadAuthed(path, fallbackFilename) {
+    const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      alert(data.message || 'ดาวน์โหลดไม่สำเร็จ');
+      return;
+    }
+    const blob = await res.blob();
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : fallbackFilename;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function renderBackupPane() {
+    document.getElementById('exportReportsCard').style.display = hasPermission('CAN_EXPORT_REPORTS') ? 'block' : 'none';
+    document.getElementById('backupCard').style.display = currentUser.role === 'ADMIN' ? 'block' : 'none';
+    if (currentUser.role === 'ADMIN') loadBackupLog();
+  }
+
+  document.getElementById('exportTxCsvBtn').onclick = () => downloadAuthed('/api/export/transactions.csv', 'transactions.csv');
+  document.getElementById('exportAccountsCsvBtn').onclick = () => downloadAuthed('/api/export/accounts.csv', 'accounts.csv');
+
+  document.getElementById('backupExportBtn').onclick = async function() {
+    const msg = document.getElementById('backupExportMsg');
+    msg.className = 'msg'; msg.textContent = 'กำลังเตรียมไฟล์...';
+    await downloadAuthed('/api/backup/export', 'backup.json');
+    msg.className = 'msg success'; msg.textContent = 'ดาวน์โหลดไฟล์สำรองข้อมูลสำเร็จ';
+    loadBackupLog();
+  };
+
+  document.getElementById('restoreBtn').onclick = async function() {
+    const msg = document.getElementById('restoreMsg');
+    const fileInput = document.getElementById('restoreFileInput');
+    const confirmText = document.getElementById('restoreConfirmInput').value;
+
+    if (!fileInput.files.length) { msg.className = 'msg error'; msg.textContent = 'กรุณาเลือกไฟล์สำรองข้อมูล'; return; }
+    if (confirmText !== 'ยืนยันกู้คืนฐานข้อมูล') { msg.className = 'msg error'; msg.textContent = 'ข้อความยืนยันไม่ตรง'; return; }
+    if (!confirm('ยืนยันกู้คืนฐานข้อมูล? ข้อมูลปัจจุบันทั้งหมดจะถูกแทนที่ด้วยไฟล์นี้ และไม่สามารถย้อนกลับได้')) return;
+
+    let snapshot;
+    try {
+      snapshot = JSON.parse(await fileInput.files[0].text());
+    } catch (e) {
+      msg.className = 'msg error'; msg.textContent = 'ไฟล์ไม่ใช่ JSON ที่ถูกต้อง'; return;
+    }
+
+    msg.className = 'msg'; msg.textContent = 'กำลังกู้คืนข้อมูล...';
+    const res = await api('/api/backup/restore', { method: 'POST', body: JSON.stringify({ confirmText, snapshot }) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success ? 'กู้คืนฐานข้อมูลสำเร็จ กรุณาโหลดหน้าใหม่' : res.message;
+    if (res.success) { loadBackupLog(); setTimeout(() => window.location.reload(), 1500); }
+  };
+
+  async function loadBackupLog() {
+    const box = document.getElementById('backupLogList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/backup/log');
+    if (!res.success) { box.textContent = res.message; return; }
+    const logs = res.logs || [];
+    box.innerHTML = logs.length
+      ? logs.map((l) => `<div class="tx-mini-row"><span>${l.action === 'EXPORT' ? 'สำรองข้อมูล' : 'กู้คืนข้อมูล'}</span><span class="result-sub">${new Date(l.createdAt).toLocaleString('th-TH')}</span></div>`).join('')
+      : '<p class="empty-hint">ยังไม่มีประวัติ</p>';
   }
 
   init();

@@ -27,6 +27,8 @@ import {
   handleGraduationExecute,
   handleListGraduationBatches
 } from './routes/academic.js';
+import { handleExportBackup, handleRestoreBackup, handleListBackupLog } from './routes/backup.js';
+import { handleExportTransactionsCsv, handleExportAccountsCsv, handleGetTransaction } from './routes/exports.js';
 import { jsonError } from './auth.js';
 
 const ROUTES = [
@@ -69,7 +71,15 @@ const ROUTES = [
   ['POST', '/api/academic/promote', handlePromoteGrade],
   ['POST', '/api/academic/graduation/preview', handleGraduationPreview],
   ['POST', '/api/academic/graduation/execute', handleGraduationExecute],
-  ['GET', '/api/academic/graduation/batches', handleListGraduationBatches]
+  ['GET', '/api/academic/graduation/batches', handleListGraduationBatches],
+
+  ['GET', '/api/backup/export', handleExportBackup],
+  ['POST', '/api/backup/restore', handleRestoreBackup],
+  ['GET', '/api/backup/log', handleListBackupLog],
+
+  ['GET', '/api/export/transactions.csv', handleExportTransactionsCsv],
+  ['GET', '/api/export/accounts.csv', handleExportAccountsCsv]
+  // /api/transactions/:id handled separately below
 ];
 
 export default {
@@ -110,6 +120,12 @@ async function routeApi(request, env, url) {
   const voidTxMatch = path.match(/^\/api\/transactions\/([^/]+)\/void$/);
   if (voidTxMatch && request.method === 'POST') {
     return handleVoidTransaction(request, env, voidTxMatch[1]);
+  }
+
+  // /api/transactions/:id (single transaction, for receipt printing)
+  const txDetailMatch = path.match(/^\/api\/transactions\/([^/]+)$/);
+  if (txDetailMatch && request.method === 'GET') {
+    return handleGetTransaction(request, env, txDetailMatch[1]);
   }
 
   // /api/loans/:id (+ /approve, /reject, /disburse, /payment)

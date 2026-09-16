@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ใบเสร็จ - BPD School Bank</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primary: #4f46e5; --primary-dark: #3730a3; --text: #1e2433; --muted: #6b7590; --border: #e4e8f5;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Prompt', 'Segoe UI', system-ui, sans-serif; background: #f4f6fd; color: var(--text); padding: 24px; }
+  .receipt { max-width: 380px; margin: 0 auto; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 14px 34px -14px rgba(67,56,202,.2); border: 1px solid var(--border); }
+  .head { text-align: center; margin-bottom: 18px; }
+  .head img { width: 56px; height: 56px; object-fit: contain; margin-bottom: 8px; }
+  .head h1 { font-size: 16px; font-weight: 700; }
+  .head p { font-size: 12px; color: var(--muted); }
+  .divider { border-top: 1.5px dashed var(--border); margin: 16px 0; }
+  .row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; gap: 10px; }
+  .row .label { color: var(--muted); }
+  .amount-box { text-align: center; margin: 16px 0; }
+  .amount-box .type { font-size: 13px; color: var(--muted); }
+  .amount-box .value { font-size: 30px; font-weight: 700; color: var(--primary-dark); font-variant-numeric: tabular-nums; }
+  .footnote { text-align: center; font-size: 11px; color: var(--muted); margin-top: 16px; }
+  button.printBtn {
+    display: block; width: 100%; margin-top: 20px; padding: 12px; border: none; border-radius: 10px;
+    background: linear-gradient(135deg, var(--primary), var(--primary-dark)); color: #fff; font-weight: 600;
+    font-size: 14px; font-family: inherit; cursor: pointer;
+  }
+  #errorBox { text-align: center; color: #dc2626; font-size: 13px; padding: 20px; }
+  @media print {
+    body { background: #fff; padding: 0; }
+    .receipt { box-shadow: none; border: none; max-width: 100%; }
+    button.printBtn { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="receipt" id="receiptBox">กำลังโหลด...</div>
+
+<script>
+  const token = localStorage.getItem('BPD_TOKEN');
+  const params = new URLSearchParams(window.location.search);
+  const txId = params.get('id');
+
+  function escapeHtml(v) {
+    return String(v ?? '')
+      .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+  }
+
+  function money(satang) {
+    return (Number(satang || 0) / 100).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  async function load() {
+    const box = document.getElementById('receiptBox');
+    if (!token) { window.location.href = '/login.html'; return; }
+    if (!txId) { box.innerHTML = '<div id="errorBox">ไม่พบรหัสรายการ</div>'; return; }
+
+    const res = await fetch('/api/transactions/' + encodeURIComponent(txId), {
+      headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const data = await res.json().catch(() => ({ success: false }));
+    if (!data.success) { box.innerHTML = '<div id="errorBox">' + (data.message || 'ไม่พบรายการ') + '</div>'; return; }
+
+    const t = data.transaction;
+    const typeLabel = t.type === 'DEPOSIT' ? 'ฝากเงิน' : t.type === 'WITHDRAW' ? 'ถอนเงิน' : t.type;
+
+    box.innerHTML = `
+      <div class="head">
+        <img src="/logo.png" alt="ตราโรงเรียน">
+        <h1>ใบเสร็จรับเงิน / BPD School Bank</h1>
+        <p>โรงเรียนบ้านป่าเด็ง</p>
+      </div>
+      <div class="row"><span class="label">เลขที่รายการ</span><span>${escapeHtml(t.txId)}</span></div>
+      <div class="row"><span class="label">วันที่/เวลา</span><span>${escapeHtml(new Date(t.createdAt).toLocaleString('th-TH'))}</span></div>
+      <div class="row"><span class="label">เลขบัญชี</span><span>${escapeHtml(t.accountNo)}</span></div>
+      <div class="row"><span class="label">ชื่อ-นามสกุล</span><span>${escapeHtml(t.fullName)}</span></div>
+      <div class="divider"></div>
+      <div class="amount-box">
+        <div class="type">${escapeHtml(typeLabel)}</div>
+        <div class="value">${money(t.amountSatang)} บาท</div>
+      </div>
+      <div class="divider"></div>
+      <div class="row"><span class="label">ยอดก่อนทำรายการ</span><span>${money(t.balanceBeforeSatang)} บาท</span></div>
+      <div class="row"><span class="label">ยอดหลังทำรายการ</span><span>${money(t.balanceAfterSatang)} บาท</span></div>
+      ${t.note ? `<div class="row"><span class="label">หมายเหตุ</span><span>${escapeHtml(t.note)}</span></div>` : ''}
+      <div class="row"><span class="label">ผู้ทำรายการ</span><span>${escapeHtml(t.tellerName)}</span></div>
+      <p class="footnote">เอกสารนี้ออกโดยระบบอัตโนมัติ ไม่ต้องลงลายมือชื่อ</p>
+      <button class="printBtn" onclick="window.print()">พิมพ์ใบเสร็จ / บันทึกเป็น PDF</button>
+    `;
+  }
+
+  load();
+</script>
+</body>
+</html>

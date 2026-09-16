@@ -19,8 +19,14 @@ Bank Session, จัดการผู้ใช้งาน
 (อายุ 5 นาที ผูกกับแอดมินที่ตรวจสอบ) ป้องกันการดำเนินการผิดชุดข้อมูล, และเก็บ
 snapshot ก่อนลบไว้ในตาราง `graduation_batches` เพื่อตรวจสอบย้อนหลังได้เสมอ
 
-ยังไม่รวม: ปรับโครงสร้างหนี้ (restructuring), สำรอง/กู้คืนฐานข้อมูลแบบเต็มระบบ,
-Export CSV/PDF, ออกเอกสารราชการ (DOCX/PDF) — จะทำต่อเป็นเฟสถัดไป
+**Phase 4 (เพิ่มใหม่):** สำรอง/กู้คืนฐานข้อมูลทั้งระบบ (Admin เท่านั้น — export เป็น
+ไฟล์ JSON, restore ต้องพิมพ์ข้อความยืนยันให้ตรงทุกตัวอักษรเพราะเป็นการลบข้อมูล
+ปัจจุบันทั้งหมดแล้วแทนที่), export รายงานเป็น CSV (รายการฝาก-ถอนทั้งหมด, รายชื่อ
+บัญชีทั้งหมด — เปิดด้วย Excel/Sheets ได้ตรงๆ), และใบเสร็จพิมพ์ได้ต่อรายการฝาก-ถอน
+(หน้า `receipt.html` ใช้ปุ่ม "พิมพ์/บันทึกเป็น PDF" ของเบราว์เซอร์)
+
+ยังไม่รวม: ปรับโครงสร้างหนี้ (loan restructuring), ออกเอกสารราชการแบบเต็ม
+(สัญญาเงินกู้ DOCX ที่ต้องกรอกแบบฟอร์มราชการ) — จะทำต่อเป็นเฟสถัดไป
 
 ## สิ่งที่ต่างจากเวอร์ชัน Apps Script เดิม (ตั้งใจให้ต่างและดีขึ้น)
 
@@ -49,6 +55,7 @@ npx wrangler d1 create banpadeng-school-bank-db
 npm run db:migrate:remote
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0002_loans_closure_handover.sql
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0003_academic_year.sql
+npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0004_backup_log.sql
 
 # 3) deploy
 npm run deploy
@@ -70,6 +77,7 @@ Cloudflare Dashboard > Workers > โปรเจกต์นี้ > Settings > 
 npm run db:migrate:local
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0002_loans_closure_handover.sql
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0003_academic_year.sql
+npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0004_backup_log.sql
 npm run dev
 ```
 
@@ -102,8 +110,8 @@ public/
 ## งานที่ยังไม่ได้ทำ (เว้นไว้เป็นเฟสถัดไป)
 
 - ปรับโครงสร้างหนี้ (loan restructuring)
-- สำรอง/กู้คืนฐานข้อมูลแบบเต็มระบบ (ตอนนี้มีแค่ snapshot อัตโนมัติก่อน purge ตอน
-  จบการศึกษา เก็บใน `graduation_batches.snapshot_json`)
+- ออกเอกสารราชการแบบฟอร์ม (สัญญาเงินกู้, ใบสำคัญรับเงินแบบราชการ เป็น DOCX) —
+  ตอนนี้มีแค่ใบเสร็จพิมพ์ได้แบบง่ายผ่าน `receipt.html`
 - Export CSV/PDF, ออกเอกสารราชการ (สัญญาเงินกู้, ใบเสร็จ ฯลฯ เป็น DOCX/PDF)
 - หน้า admin แก้ไขสิทธิ์ผู้ใช้งานแบบละเอียด (ตอนนี้ต้องตั้งสิทธิ์ผ่าน API โดยตรง —
   หน้าเว็บมีแค่สร้างผู้ใช้ + ดูรายชื่อ ยังไม่มีปุ่มแก้ไขสิทธิ์ทีละอัน)
@@ -121,6 +129,9 @@ public/
 - `CAN_HANDOVER_CASH` — ส่งมอบ/รับมอบเงินสด
 - `CAN_CLOSE_ACCOUNT` — มีอยู่แล้วตั้งแต่ Phase 1 แต่เพิ่งเริ่มใช้งานจริงในเฟส 2
 - `CAN_MANAGE_ACADEMIC_YEAR` — เลื่อนชั้น/ดำเนินการจบการศึกษา (Phase 3)
+- `CAN_EXPORT_REPORTS` — ดาวน์โหลดรายงาน CSV (Phase 4). สำรอง/กู้คืนฐานข้อมูล
+  จำกัดเฉพาะ role ADMIN เท่านั้น ไม่มี permission แยก เพราะเป็นการเข้าถึงข้อมูล
+  ทั้งระบบ (รวม password hash)
 
 Admin มีสิทธิ์ทั้งหมดโดยอัตโนมัติ ส่วน TELLER ต้องเปิดสิทธิ์ที่ต้องการทีละคนผ่าน
 `PUT /api/admin/users/:id` (ส่ง `permissions: { "CAN_MANAGE_LOANS": true, ... }`)

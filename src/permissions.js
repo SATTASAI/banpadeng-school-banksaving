@@ -25,7 +25,10 @@ export const PERMISSIONS = [
   'CAN_CORRECT_TRANSACTION',
   'CAN_HANDOVER_CASH',
   // Phase 3
-  'CAN_MANAGE_ACADEMIC_YEAR'
+  'CAN_MANAGE_ACADEMIC_YEAR',
+  // Phase 4 (backup/restore is ADMIN-role-only by design -- see README --
+  // so it has no separate permission entry here)
+  'CAN_EXPORT_REPORTS'
 ];
 
 export const DEFAULT_PERMISSIONS_BY_ROLE = {
