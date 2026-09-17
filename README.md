@@ -34,6 +34,21 @@ snapshot ก่อนลบไว้ในตาราง `graduation_batches` �
 ค้างชำระ), และประวัติธุรกรรมแบบละเอียด (กรองตามวันที่/ประเภท/ผู้ทำรายการ/
 จุดทำรายการ/ค้นหาชื่อหรือเลขบัญชี พร้อม pagination)
 
+**Phase 6 (เพิ่มใหม่):** นำเข้าข้อมูลจากไฟล์สำรองของระบบเดิม (Apps Script "BPD School
+Bank") — อัปโหลดไฟล์ .xlsx ที่ได้จากฟีเจอร์สำรองข้อมูลของระบบเดิมโดยตรง (อ่านชีต
+`BANK_MEMBERS` / `ACCOUNTS` / `TRANSACTIONS` ด้วย SheetJS ฝั่งเบราว์เซอร์ ไม่ต้องแปลง
+ไฟล์เอง), จับคู่เจ้าของบัญชีผ่าน `ACCOUNTS.OWNER_ID` -> `BANK_MEMBERS.MEMBER_ID`,
+แปลงประเภทธุรกรรมเดิม (`DEPOSIT`/`WITHDRAW`/`OPENING_DEPOSIT`/`INTEREST`/`DIVIDEND`/
+`CLOSE_WITHDRAW`/`REVERSAL`) เป็นประเภทของระบบใหม่, **จำลองเดินบัญชีตามลำดับเวลาใหม่
+ทั้งหมด** เพื่อคำนวณยอดก่อน/หลังของทุกรายการให้สอดคล้องกัน แล้วถ้ายอดที่จำลองได้
+ไม่ตรงกับยอดคงเหลือปัจจุบันที่บันทึกไว้ในระบบเดิม (ข้อมูลเก่าอาจมีรายการตกหล่น)
+จะเติมรายการ "ปรับยอดจากการนำเข้าข้อมูลระบบเดิม" ให้ยอดตรงกันเสมอ — ใช้ pattern
+ตรวจสอบตัวอย่างก่อนแบบเดียวกับโมดูลอื่น แต่เก็บเฉพาะ SHA-256 hash ของข้อมูลที่ตรวจสอบ
+ไว้ในฐานข้อมูล (ไม่เก็บข้อมูลทั้งก้อนซึ่งอาจมีขนาดหลาย MB) แล้วให้เบราว์เซอร์ส่งข้อมูล
+ชุดเดิมกลับมาตอนยืนยันจริง — ถ้าไฟล์ถูกแก้ไประหว่างทางจะปฏิเสธการนำเข้าทันที
+และบัญชีที่มีเลขบัญชีซ้ำกับที่มีอยู่แล้วในระบบใหม่จะถูกข้ามอัตโนมัติ ทำให้กดนำเข้า
+ไฟล์เดิมซ้ำได้อย่างปลอดภัยโดยไม่เกิดข้อมูลซ้ำซ้อน (จำกัดเฉพาะ role ADMIN)
+
 ยังไม่รวม: ปรับโครงสร้างหนี้ (loan restructuring), ออกเอกสารราชการแบบเต็ม
 (สัญญาเงินกู้ DOCX ที่ต้องกรอกแบบฟอร์มราชการ) — จะทำต่อเป็นเฟสถัดไป
 
@@ -75,6 +90,7 @@ npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/00
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0004_backup_log.sql
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0005_fix_transactions_nullable_bank_session.sql
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0006_interest_reports.sql
+npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0007_legacy_import.sql
 
 # 3) deploy
 npm run deploy
@@ -99,12 +115,39 @@ npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/000
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0004_backup_log.sql
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0005_fix_transactions_nullable_bank_session.sql
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0006_interest_reports.sql
+npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0007_legacy_import.sql
 npm run dev
 ```
 
 จะรันที่ `http://localhost:8787` ใช้ D1 แบบ local (ไม่กระทบข้อมูลจริง) เหมาะสำหรับ
 ทดสอบก่อน deploy ตามแนวทางที่เคยทำกับ Index.html เวอร์ชัน Apps Script (ทดสอบบนสำเนา
 ก่อนขึ้นจริงเสมอ)
+
+## นำเข้าข้อมูลจากระบบเดิม (Apps Script) — Phase 6
+
+ใช้ครั้งเดียวตอนย้ายจากระบบเดิมมาระบบใหม่นี้ (ทำได้ซ้ำอย่างปลอดภัยถ้าจำเป็น):
+
+1. เข้าสู่ระบบด้วยบัญชี ADMIN แล้วไปที่แท็บ "สำรอง/ออกรายงาน"
+2. ในหัวข้อ "นำเข้าข้อมูลจากระบบเดิม (Apps Script)" เลือกไฟล์ .xlsx ที่ได้จากฟีเจอร์
+   สำรองข้อมูลของระบบเดิม (ไฟล์ต้องมีชีตชื่อ `BANK_MEMBERS`, `ACCOUNTS`, `TRANSACTIONS`
+   ตรงตามที่ระบบเดิม export ออกมา — ไม่ต้องแก้ไขไฟล์เอง)
+3. กด "คำนวณตัวอย่าง" — ระบบจะอ่านไฟล์ในเบราว์เซอร์ (ไม่ต้องอัปโหลดไฟล์ดิบขึ้นเซิร์ฟเวอร์
+   เป็นไฟล์แยก) แล้วส่งข้อมูลไปคำนวณตัวอย่างผล พร้อมแสดงจำนวนสมาชิก/บัญชี/ธุรกรรมที่จะ
+   นำเข้า, บัญชีที่ถูกข้าม (พร้อมเหตุผล), และจำนวนรายการที่ต้อง "ปรับยอด" เพื่อให้ตรงกับ
+   ยอดคงเหลือที่บันทึกไว้ในระบบเดิม
+4. ตรวจสอบตัวเลขให้เรียบร้อยก่อน แล้วกด "ยืนยันนำเข้าข้อมูลนี้" — ขั้นตอนนี้เซิร์ฟเวอร์
+   จะคำนวณซ้ำจากข้อมูลชุดเดียวกับตอนตรวจสอบตัวอย่างเท่านั้น (ตรวจสอบด้วย hash) ถ้าไฟล์
+   หรือข้อมูลเปลี่ยนไประหว่างทางจะถูกปฏิเสธและต้องกดคำนวณตัวอย่างใหม่
+5. บัญชีที่มีเลขบัญชี (`account_no`) ซ้ำกับที่มีอยู่แล้วในระบบใหม่จะถูกข้ามอัตโนมัติ —
+   กดนำเข้าไฟล์เดิมซ้ำอีกครั้งจึงไม่ทำให้เกิดข้อมูลซ้ำซ้อน
+
+**API ที่เกี่ยวข้อง** (ต้องเป็น ADMIN, ผ่าน `requireAdmin`):
+- `POST /api/backup/import-legacy/preview` — รับ `{ members, accounts, transactions }`
+  (แถวข้อมูลดิบจากทั้ง 3 ชีต) คืน `{ token, summary, expiresAt }` (token อายุ 15 นาที)
+- `POST /api/backup/import-legacy/commit` — รับ `{ token, members, accounts, transactions }`
+  (ต้องเป็นข้อมูลชุดเดียวกับตอนตรวจสอบตัวอย่าง) ตรวจสอบ hash แล้วดำเนินการนำเข้าจริง
+  คืนสรุปผลที่นำเข้าได้จริง (หลังข้ามรายการที่ซ้ำ)
+- `GET /api/backup/import-legacy/log` — ประวัติการนำเข้า 50 รายการล่าสุด
 
 ## โครงสร้างโปรเจกต์
 
@@ -122,6 +165,7 @@ src/
     banksession.js    เปิด-ปิด Bank Session, จุดทำรายการ
     interest.js       คำนวณ/ยืนยันจ่ายดอกเบี้ยเงินฝาก-เงินปันผล (Phase 5)
     reports.js        รายงานสรุปผล + ประวัติธุรกรรมแบบละเอียด (Phase 5)
+    legacyImport.js   นำเข้าข้อมูลจากไฟล์สำรอง Apps Script เดิม (Phase 6)
 migrations/
   0001_init.sql       D1 schema
 public/

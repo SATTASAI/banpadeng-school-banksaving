@@ -190,6 +190,7 @@
     main { padding: 16px 14px 50px; }
   }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 <header>
@@ -561,6 +562,28 @@
         <input id="restoreConfirmInput">
         <button class="primary danger small" id="restoreBtn" style="margin-top:14px;">กู้คืนฐานข้อมูลจากไฟล์นี้</button>
         <div class="msg" id="restoreMsg"></div>
+      </div>
+
+      <div class="subcard">
+        <h3>นำเข้าข้อมูลจากระบบเดิม (Apps Script) — ทำครั้งเดียวตอนเริ่มใช้ระบบใหม่</h3>
+        <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">
+          เลือกไฟล์สำรองข้อมูล .xlsx ที่ได้จากฟีเจอร์ "สำรองข้อมูล" ของระบบ BPD School Bank (Apps Script) เดิม
+          ระบบจะอ่านชีต BANK_MEMBERS / ACCOUNTS / TRANSACTIONS แล้วให้ตรวจสอบตัวอย่างผลก่อนยืนยันนำเข้าจริง
+          (บัญชีที่มีเลขบัญชีซ้ำกับที่มีอยู่แล้วจะถูกข้ามอัตโนมัติ นำเข้าซ้ำได้อย่างปลอดภัย)
+        </p>
+        <label>เลือกไฟล์ (.xlsx)</label>
+        <input type="file" id="legacyImportFileInput" accept=".xlsx">
+        <div class="row-flex" style="margin-top:12px;">
+          <button class="primary small" id="legacyImportPreviewBtn">คำนวณตัวอย่าง</button>
+          <button class="primary small" id="legacyImportConfirmBtn" style="display:none;">ยืนยันนำเข้าข้อมูลนี้</button>
+        </div>
+        <div class="msg" id="legacyImportMsg"></div>
+        <div id="legacyImportSummary" style="margin-top:12px;"></div>
+      </div>
+
+      <div class="subcard">
+        <h3>ประวัติการนำเข้าข้อมูลจากระบบเดิม</h3>
+        <div id="legacyImportLogList">กำลังโหลด...</div>
       </div>
 
       <div class="subcard">
@@ -1403,7 +1426,7 @@
   function renderBackupPane() {
     document.getElementById('exportReportsCard').style.display = hasPermission('CAN_EXPORT_REPORTS') ? 'block' : 'none';
     document.getElementById('backupCard').style.display = currentUser.role === 'ADMIN' ? 'block' : 'none';
-    if (currentUser.role === 'ADMIN') loadBackupLog();
+    if (currentUser.role === 'ADMIN') { loadBackupLog(); loadLegacyImportLog(); }
   }
 
   document.getElementById('exportTxCsvBtn').onclick = () => downloadAuthed('/api/export/transactions.csv', 'transactions.csv');
@@ -1449,6 +1472,124 @@
     box.innerHTML = logs.length
       ? logs.map((l) => `<div class="tx-mini-row"><span>${l.action === 'EXPORT' ? 'สำรองข้อมูล' : 'กู้คืนข้อมูล'}</span><span class="result-sub">${new Date(l.createdAt).toLocaleString('th-TH')}</span></div>`).join('')
       : '<p class="empty-hint">ยังไม่มีประวัติ</p>';
+  }
+
+  // ---- Legacy (Apps Script) backup import ----
+  let legacyImportPayload = null;
+  let legacyImportToken = null;
+
+  function sheetToRows(workbook, sheetName) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) return null;
+    return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true });
+  }
+
+  function readLegacyWorkbookFile(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('อ่านไฟล์ไม่สำเร็จ'));
+      reader.onload = () => {
+        try {
+          const data = new Uint8Array(reader.result);
+          const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+          resolve(workbook);
+        } catch (e) {
+          reject(e);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function renderLegacyImportSummary(summary, mode) {
+    const box = document.getElementById('legacyImportSummary');
+    const skippedAccountsList = (summary.skippedAccounts || []).slice(0, 10)
+      .map((s) => `<div class="result-sub">- ${escapeHtml(s.accountNo || s.accountId || '')}: ${escapeHtml(s.reason)}</div>`).join('');
+    const unknownTypes = Object.entries(summary.skippedTxUnknownType || {});
+    box.innerHTML = `
+      <div class="tx-mini-row"><span>สมาชิกที่จะนำเข้า</span><span>${summary.memberCount.toLocaleString('th-TH')} คน</span></div>
+      <div class="tx-mini-row"><span>บัญชีที่จะนำเข้า</span><span>${summary.accountCount.toLocaleString('th-TH')} บัญชี</span></div>
+      <div class="tx-mini-row"><span>รายการธุรกรรมที่จะนำเข้า</span><span>${summary.transactionCount.toLocaleString('th-TH')} รายการ</span></div>
+      ${mode === 'commit' ? `<div class="tx-mini-row"><span>บัญชีที่ข้าม (เลขบัญชีซ้ำของเดิมอยู่แล้ว)</span><span>${(summary.skippedDuplicateAccountCount || 0).toLocaleString('th-TH')} บัญชี</span></div>` : ''}
+      <div class="tx-mini-row"><span>รายการปรับยอด (ยอดจากประวัติไม่ตรงยอดที่บันทึกไว้)</span><span>${summary.adjustmentCount.toLocaleString('th-TH')} บัญชี (รวม ${money(summary.totalAdjustmentSatang)} บาท)</span></div>
+      ${summary.orphanTxCount ? `<div class="tx-mini-row"><span>ธุรกรรมที่หาบัญชีเจ้าของไม่พบ (ข้าม)</span><span>${summary.orphanTxCount.toLocaleString('th-TH')} รายการ</span></div>` : ''}
+      ${(summary.membersWithPlaceholderName || []).length ? `<div class="tx-mini-row"><span>สมาชิกไม่มีชื่อในระบบเดิม (ใช้ชื่อชั่วคราวแทน)</span><span>${summary.membersWithPlaceholderName.length.toLocaleString('th-TH')} คน</span></div>` : ''}
+      ${unknownTypes.length ? `<div class="result-sub">ประเภทธุรกรรมที่ไม่รู้จัก (ข้าม): ${unknownTypes.map(([k, v]) => `${escapeHtml(k)} x${v}`).join(', ')}</div>` : ''}
+      ${skippedAccountsList ? `<div style="margin-top:6px;"><strong style="font-size:12px;">บัญชีที่ข้าม (ตัวอย่างสูงสุด 10 รายการ):</strong>${skippedAccountsList}</div>` : ''}
+    `;
+  }
+
+  document.getElementById('legacyImportPreviewBtn').onclick = async function() {
+    const msg = document.getElementById('legacyImportMsg');
+    const fileInput = document.getElementById('legacyImportFileInput');
+    document.getElementById('legacyImportConfirmBtn').style.display = 'none';
+    document.getElementById('legacyImportSummary').innerHTML = '';
+    legacyImportPayload = null;
+    legacyImportToken = null;
+
+    if (!fileInput.files.length) { msg.className = 'msg error'; msg.textContent = 'กรุณาเลือกไฟล์ .xlsx'; return; }
+
+    msg.className = 'msg'; msg.textContent = 'กำลังอ่านไฟล์...';
+    try {
+      const workbook = await readLegacyWorkbookFile(fileInput.files[0]);
+      const members = sheetToRows(workbook, 'BANK_MEMBERS');
+      const accounts = sheetToRows(workbook, 'ACCOUNTS');
+      const transactions = sheetToRows(workbook, 'TRANSACTIONS');
+      if (!members || !accounts || !transactions) {
+        msg.className = 'msg error';
+        msg.textContent = 'ไฟล์นี้ไม่มีชีต BANK_MEMBERS / ACCOUNTS / TRANSACTIONS ที่ระบบต้องการ กรุณาตรวจสอบว่าเป็นไฟล์สำรองจากระบบเดิมจริง';
+        return;
+      }
+      legacyImportPayload = { members, accounts, transactions };
+
+      msg.className = 'msg'; msg.textContent = 'กำลังคำนวณตัวอย่าง...';
+      const res = await api('/api/backup/import-legacy/preview', { method: 'POST', body: JSON.stringify(legacyImportPayload) });
+      if (!res.success) { msg.className = 'msg error'; msg.textContent = res.message; return; }
+
+      legacyImportToken = res.token;
+      msg.className = 'msg success'; msg.textContent = 'คำนวณตัวอย่างสำเร็จ กรุณาตรวจสอบผลด้านล่างก่อนกดยืนยันนำเข้า';
+      renderLegacyImportSummary(res.summary, 'preview');
+      document.getElementById('legacyImportConfirmBtn').style.display = 'inline-block';
+    } catch (e) {
+      msg.className = 'msg error'; msg.textContent = 'อ่านไฟล์ไม่สำเร็จ: ' + e.message;
+    }
+  };
+
+  document.getElementById('legacyImportConfirmBtn').onclick = async function() {
+    const msg = document.getElementById('legacyImportMsg');
+    if (!legacyImportToken || !legacyImportPayload) { msg.className = 'msg error'; msg.textContent = 'กรุณาคำนวณตัวอย่างใหม่'; return; }
+    if (!confirm('ยืนยันนำเข้าข้อมูลจากระบบเดิม? บัญชีที่มีเลขบัญชีซ้ำกับที่มีอยู่แล้วจะถูกข้ามอัตโนมัติ')) return;
+
+    msg.className = 'msg'; msg.textContent = 'กำลังนำเข้าข้อมูล... (อาจใช้เวลาสักครู่หากมีข้อมูลจำนวนมาก)';
+    document.getElementById('legacyImportConfirmBtn').disabled = true;
+    try {
+      const res = await api('/api/backup/import-legacy/commit', {
+        method: 'POST',
+        body: JSON.stringify({ token: legacyImportToken, ...legacyImportPayload })
+      });
+      if (!res.success) { msg.className = 'msg error'; msg.textContent = res.message; return; }
+
+      msg.className = 'msg success'; msg.textContent = 'นำเข้าข้อมูลสำเร็จ';
+      renderLegacyImportSummary(res, 'commit');
+      document.getElementById('legacyImportConfirmBtn').style.display = 'none';
+      legacyImportPayload = null;
+      legacyImportToken = null;
+      document.getElementById('legacyImportFileInput').value = '';
+      loadLegacyImportLog();
+    } finally {
+      document.getElementById('legacyImportConfirmBtn').disabled = false;
+    }
+  };
+
+  async function loadLegacyImportLog() {
+    const box = document.getElementById('legacyImportLogList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/backup/import-legacy/log');
+    if (!res.success) { box.textContent = res.message; return; }
+    const logs = res.logs || [];
+    box.innerHTML = logs.length
+      ? logs.map((l) => `<div class="tx-mini-row"><span>${escapeHtml(l.adminName)}: ${l.memberCount} สมาชิก / ${l.accountCount} บัญชี / ${l.transactionCount} รายการ</span><span class="result-sub">${new Date(l.importedAt).toLocaleString('th-TH')}</span></div>`).join('')
+      : '<p class="empty-hint">ยังไม่มีประวัติการนำเข้า</p>';
   }
 
   init();

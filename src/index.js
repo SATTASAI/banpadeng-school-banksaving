@@ -36,6 +36,11 @@ import {
   handleInterestRunDetail
 } from './routes/interest.js';
 import { handleReportsSummary, handleReportsByClass, handleTransactionsDetailed } from './routes/reports.js';
+import {
+  handlePreviewLegacyImport,
+  handleCommitLegacyImport,
+  handleListLegacyImportLog
+} from './routes/legacyImport.js';
 import { jsonError } from './auth.js';
 
 const ROUTES = [
@@ -95,7 +100,11 @@ const ROUTES = [
 
   ['GET', '/api/reports/summary', handleReportsSummary],
   ['GET', '/api/reports/by-class', handleReportsByClass],
-  ['GET', '/api/reports/transactions', handleTransactionsDetailed]
+  ['GET', '/api/reports/transactions', handleTransactionsDetailed],
+
+  ['POST', '/api/backup/import-legacy/preview', handlePreviewLegacyImport],
+  ['POST', '/api/backup/import-legacy/commit', handleCommitLegacyImport],
+  ['GET', '/api/backup/import-legacy/log', handleListLegacyImportLog]
 ];
 
 export default {

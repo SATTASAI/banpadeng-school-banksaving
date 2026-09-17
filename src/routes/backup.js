@@ -20,6 +20,7 @@ const BACKUP_TABLES = [
   { name: 'graduation_batches', columns: ['id', 'grade', 'executed_by', 'executed_at', 'member_count', 'snapshot_json', 'note'] },
   { name: 'interest_runs', columns: ['id', 'account_type', 'tx_type', 'rate_bps', 'period_label', 'run_by', 'run_at', 'account_count', 'skipped_count', 'total_amount_satang', 'note'] },
   { name: 'interest_run_items', columns: ['id', 'run_id', 'account_id', 'tx_id', 'balance_before_satang', 'amount_satang'] },
+  { name: 'legacy_import_log', columns: ['id', 'admin_id', 'imported_at', 'member_count', 'account_count', 'transaction_count', 'skipped_account_count', 'adjustment_count', 'summary_json'] },
   { name: 'settings', columns: ['key', 'value', 'description', 'updated_by', 'updated_at'] }
 ];
 
