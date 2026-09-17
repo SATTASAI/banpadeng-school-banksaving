@@ -18,6 +18,8 @@ const BACKUP_TABLES = [
   { name: 'loan_payments', columns: ['id', 'loan_id', 'amount_satang', 'principal_applied_satang', 'interest_applied_satang', 'late_fee_applied_satang', 'user_id', 'note', 'request_id', 'created_at'] },
   { name: 'cash_handovers', columns: ['id', 'from_user_id', 'to_user_id', 'amount_satang', 'note', 'status', 'created_at', 'confirmed_at', 'bank_session_id'] },
   { name: 'graduation_batches', columns: ['id', 'grade', 'executed_by', 'executed_at', 'member_count', 'snapshot_json', 'note'] },
+  { name: 'interest_runs', columns: ['id', 'account_type', 'tx_type', 'rate_bps', 'period_label', 'run_by', 'run_at', 'account_count', 'skipped_count', 'total_amount_satang', 'note'] },
+  { name: 'interest_run_items', columns: ['id', 'run_id', 'account_id', 'tx_id', 'balance_before_satang', 'amount_satang'] },
   { name: 'settings', columns: ['key', 'value', 'description', 'updated_by', 'updated_at'] }
 ];
 

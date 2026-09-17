@@ -400,6 +400,94 @@
     </div>
   </section>
 
+  <!-- INTEREST / DIVIDEND -->
+  <section class="pane" data-pane="interest">
+    <div class="card">
+      <h2>คำนวณดอกเบี้ยเงินฝาก / เงินปันผล</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:6px;">คำนวณจากยอดคงเหลือปัจจุบันของแต่ละบัญชี คูณอัตราที่กำหนด (ไม่ใช่ยอดเฉลี่ยรายวัน) ต้องกดคำนวณตัวอย่างก่อนแล้วจึงยืนยันจ่ายจริงภายใน 5 นาที</p>
+      <label>ประเภทบัญชี</label>
+      <select id="intAccountType">
+        <option value="SAVINGS">ออมทรัพย์ (ดอกเบี้ยเงินฝาก)</option>
+        <option value="SHARE">ออมหุ้น (เงินปันผล)</option>
+      </select>
+      <label>อัตรา (% ต่อครั้งที่คำนวณ)</label>
+      <input id="intRate" type="number" min="0" max="100" step="0.01">
+      <label>งวด/รอบที่คำนวณ</label>
+      <input id="intPeriodLabel" placeholder="เช่น ปีการศึกษา 2568">
+      <button class="primary small" id="intPreviewBtn" style="margin-top:14px;">คำนวณตัวอย่าง</button>
+      <div class="msg" id="intPreviewMsg"></div>
+
+      <div id="intPreviewBox" class="subcard" style="display:none;">
+        <h3>ผลการคำนวณตัวอย่าง</h3>
+        <div id="intPreviewSummary" style="font-size:13px;margin-bottom:8px;"></div>
+        <div style="max-height:280px;overflow-y:auto;overflow-x:auto;">
+          <table><thead><tr><th>เลขบัญชี</th><th>ชื่อ-นามสกุล</th><th>ยอดคงเหลือ</th><th>ได้รับ</th></tr></thead>
+          <tbody id="intPreviewRows"></tbody></table>
+        </div>
+        <button class="primary small" id="intConfirmBtn" style="margin-top:14px;">ยืนยันจ่ายจริง</button>
+        <div class="msg" id="intConfirmMsg"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ประวัติการจ่ายดอกเบี้ย/เงินปันผล</h2>
+      <div id="intRunList">กำลังโหลด...</div>
+    </div>
+
+    <div class="card" id="intRunDetailCard" style="display:none;">
+      <h2>รายละเอียดการจ่าย: <span id="intRunDetailTitle"></span></h2>
+      <div id="intRunDetailBody"></div>
+    </div>
+  </section>
+
+  <!-- REPORTS -->
+  <section class="pane" data-pane="reports">
+    <div class="card">
+      <h2>สรุปภาพรวม</h2>
+      <div class="row-flex" style="margin-bottom:10px;">
+        <div>
+          <label style="margin:0 0 4px;">จากวันที่</label>
+          <input id="repFrom" type="date">
+        </div>
+        <div>
+          <label style="margin:0 0 4px;">ถึงวันที่</label>
+          <input id="repTo" type="date">
+        </div>
+        <button class="primary small" id="repRefreshBtn" style="margin-top:20px;">ดูสรุปผล</button>
+      </div>
+      <div id="repSummaryTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;"></div>
+      <div id="repTxByType" style="margin-top:16px;"></div>
+      <div id="repLoans" style="margin-top:10px;font-size:13px;color:var(--muted);"></div>
+    </div>
+
+    <div class="card">
+      <h2>สรุปตามชั้น/ห้อง</h2>
+      <div id="repByClass">กำลังโหลด...</div>
+    </div>
+
+    <div class="card">
+      <h2>ประวัติธุรกรรมแบบละเอียด</h2>
+      <div class="row-flex" style="margin-bottom:10px;">
+        <select id="detType" style="max-width:180px;">
+          <option value="">ทุกประเภท</option>
+          <option value="DEPOSIT">ฝาก</option>
+          <option value="WITHDRAW">ถอน</option>
+          <option value="OPENING_DEPOSIT">ยอดเปิดบัญชี</option>
+          <option value="INTEREST">ดอกเบี้ย</option>
+          <option value="DIVIDEND">เงินปันผล</option>
+        </select>
+        <input id="detSearch" placeholder="ค้นหาชื่อหรือเลขบัญชี" style="max-width:220px;">
+        <button class="primary small" id="detFilterBtn">กรอง</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table><thead><tr><th>วันที่/เวลา</th><th>เลขบัญชี</th><th>ชื่อ-นามสกุล</th><th>ประเภท</th><th>จำนวนเงิน</th><th>ผู้ทำรายการ</th><th>จุด</th><th>หมายเหตุ</th></tr></thead>
+        <tbody id="detRows"></tbody></table>
+      </div>
+      <div id="detEmpty" class="empty-hint" style="display:none;">ไม่พบรายการ</div>
+      <button class="primary small muted" id="detLoadMoreBtn" style="margin-top:12px;display:none;">โหลดเพิ่มเติม</button>
+    </div>
+  </section>
+
   <!-- BACKUP / EXPORT -->
   <section class="pane" data-pane="backup">
     <div class="card" id="exportReportsCard" style="display:none;">
@@ -484,6 +572,8 @@
     { key: 'loans', label: 'เงินกู้', permission: 'CAN_MANAGE_LOANS' },
     { key: 'handover', label: 'ส่งมอบเงินสด', permission: 'CAN_HANDOVER_CASH' },
     { key: 'academic', label: 'เลื่อนชั้น/จบการศึกษา', permission: 'CAN_MANAGE_ACADEMIC_YEAR' },
+    { key: 'interest', label: 'ดอกเบี้ย/เงินปันผล', permission: 'CAN_RUN_INTEREST' },
+    { key: 'reports', label: 'รายงาน', permission: 'CAN_VIEW_REPORTS' },
     { key: 'backup', label: 'สำรอง/ออกรายงาน', permission: null },
     { key: 'admin', label: 'ผู้ใช้งาน', permission: 'CAN_MANAGE_USERS' }
   ];
@@ -509,6 +599,8 @@
     if (key === 'loans') { loadLoanProducts(); loadLoans(); }
     if (key === 'handover') { loadHandoverUsers(); loadHandovers(); }
     if (key === 'academic') { loadGradeSummary(); loadGraduationBatches(); }
+    if (key === 'interest') { loadInterestRuns(); }
+    if (key === 'reports') { loadReportsSummary(); loadReportsByClass(); loadDetailedTransactions(true); }
     if (key === 'backup') { renderBackupPane(); }
   }
 
@@ -1064,6 +1156,168 @@
       ? batches.map((b) => `<div class="tx-mini-row"><span>ชั้น ${escapeHtml(b.grade)} — ${b.memberCount} คน</span><span class="result-sub">${new Date(b.executedAt).toLocaleString('th-TH')}</span></div>`).join('')
       : '<p class="empty-hint">ยังไม่มีประวัติการดำเนินการ</p>';
   }
+
+  // ---- INTEREST / DIVIDEND -----------------------------------------------
+
+  const TX_TYPE_LABEL = { DEPOSIT: 'ฝาก', WITHDRAW: 'ถอน', OPENING_DEPOSIT: 'ยอดเปิดบัญชี', INTEREST: 'ดอกเบี้ย', DIVIDEND: 'เงินปันผล' };
+  let intPreview = null;
+
+  document.getElementById('intPreviewBtn').onclick = async function() {
+    const msg = document.getElementById('intPreviewMsg');
+    document.getElementById('intPreviewBox').style.display = 'none';
+    intPreview = null;
+
+    const payload = {
+      accountType: document.getElementById('intAccountType').value,
+      ratePercent: Number(document.getElementById('intRate').value || 0),
+      periodLabel: document.getElementById('intPeriodLabel').value
+    };
+    const res = await api('/api/interest/preview', { method: 'POST', body: JSON.stringify(payload) });
+    if (!res.success) { msg.className = 'msg error'; msg.textContent = res.message; return; }
+    msg.textContent = '';
+    intPreview = res;
+
+    document.getElementById('intPreviewBox').style.display = 'block';
+    document.getElementById('intPreviewSummary').innerHTML =
+      `${res.txType === 'DIVIDEND' ? 'เงินปันผล' : 'ดอกเบี้ยเงินฝาก'} ${res.periodLabel} • อัตรา ${res.ratePercent}% • ` +
+      `<strong>${res.accountCount} บัญชี</strong> รวม <strong>${money(res.totalAmountSatang)} บาท</strong>`;
+    document.getElementById('intPreviewRows').innerHTML = res.items.map((it) => `
+      <tr><td>${escapeHtml(it.accountNo)}</td><td>${escapeHtml(it.fullName)}</td><td>${money(it.balanceSatang)}</td><td>${money(it.amountSatang)}</td></tr>
+    `).join('');
+    document.getElementById('intConfirmMsg').textContent = '';
+  };
+
+  document.getElementById('intConfirmBtn').onclick = async function() {
+    const msg = document.getElementById('intConfirmMsg');
+    if (!intPreview) return;
+    if (!confirm(`ยืนยันจ่าย${intPreview.txType === 'DIVIDEND' ? 'เงินปันผล' : 'ดอกเบี้ยเงินฝาก'} ${money(intPreview.totalAmountSatang)} บาท ให้ ${intPreview.accountCount} บัญชี?`)) return;
+
+    const res = await api('/api/interest/run', { method: 'POST', body: JSON.stringify({ token: intPreview.token }) });
+    msg.className = res.success ? 'msg success' : 'msg error';
+    msg.textContent = res.success
+      ? `จ่ายสำเร็จ ${res.accountCount} บัญชี รวม ${money(res.totalAmountSatang)} บาท` + (res.skippedCount ? ` (ข้าม ${res.skippedCount} บัญชีที่เปลี่ยนแปลงหลังตรวจสอบ)` : '')
+      : res.message;
+    if (res.success) {
+      intPreview = null;
+      document.getElementById('intPreviewBox').style.display = 'none';
+      document.getElementById('intPeriodLabel').value = '';
+      loadInterestRuns();
+    }
+  };
+
+  async function loadInterestRuns() {
+    const box = document.getElementById('intRunList');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/interest/runs');
+    if (!res.success) { box.textContent = res.message; return; }
+    const runs = res.runs || [];
+    box.innerHTML = runs.length ? runs.map((r) => `
+      <div class="result-row" onclick="openInterestRunDetail('${r.runId}')">
+        <div class="result-name-wrap">
+          <div><div class="result-name">${escapeHtml(r.txType === 'DIVIDEND' ? 'เงินปันผล' : 'ดอกเบี้ยเงินฝาก')} — ${escapeHtml(r.periodLabel)}</div>
+          <div class="result-sub">${r.accountCount} บัญชี • อัตรา ${r.ratePercent}% • โดย ${escapeHtml(r.runByName)} • ${new Date(r.runAt).toLocaleString('th-TH')}</div></div>
+        </div>
+        <span class="result-amount">${money(r.totalAmountSatang)} บ.</span>
+      </div>`).join('') : '<p class="empty-hint">ยังไม่มีประวัติการจ่ายดอกเบี้ย/เงินปันผล</p>';
+  }
+
+  window.openInterestRunDetail = async function(runId) {
+    const res = await api('/api/interest/runs/' + encodeURIComponent(runId));
+    if (!res.success) { alert(res.message); return; }
+    const { run, items } = res;
+    document.getElementById('intRunDetailCard').style.display = 'block';
+    document.getElementById('intRunDetailTitle').textContent = `${run.txType === 'DIVIDEND' ? 'เงินปันผล' : 'ดอกเบี้ยเงินฝาก'} ${run.periodLabel}`;
+    document.getElementById('intRunDetailBody').innerHTML = `
+      <p style="font-size:13px;margin-bottom:10px;">อัตรา ${run.ratePercent}% • ${run.accountCount} บัญชี รวม ${money(run.totalAmountSatang)} บาท • โดย ${escapeHtml(run.runByName)} • ${new Date(run.runAt).toLocaleString('th-TH')}</p>
+      <div style="overflow-x:auto;"><table><thead><tr><th>เลขบัญชี</th><th>ชื่อ-นามสกุล</th><th>ยอดคงเหลือก่อนได้รับ</th><th>ได้รับ</th></tr></thead><tbody>
+        ${items.map((it) => `<tr><td>${escapeHtml(it.accountNo)}</td><td>${escapeHtml(it.fullName)}</td><td>${money(it.balanceBeforeSatang)}</td><td>${money(it.amountSatang)}</td></tr>`).join('')}
+      </tbody></table></div>
+    `;
+  };
+
+  // ---- REPORTS -------------------------------------------------------------
+
+  function dateInputToMs(value, endOfDay) {
+    if (!value) return null;
+    const d = new Date(value + 'T00:00:00');
+    if (endOfDay) d.setHours(23, 59, 59, 999);
+    return d.getTime();
+  }
+
+  document.getElementById('repRefreshBtn').onclick = loadReportsSummary;
+
+  async function loadReportsSummary() {
+    const from = dateInputToMs(document.getElementById('repFrom').value, false);
+    const to = dateInputToMs(document.getElementById('repTo').value, true);
+    const qs = [];
+    if (from) qs.push('from=' + from);
+    if (to) qs.push('to=' + to);
+    const res = await api('/api/reports/summary' + (qs.length ? '?' + qs.join('&') : ''));
+    if (!res.success) return;
+
+    const tiles = document.getElementById('repSummaryTiles');
+    const accountTiles = res.accountsByType.map((a) => `
+      <div class="stat-tile"><span class="stat-label">ยอดรวม${a.accountType === 'SHARE' ? 'ออมหุ้น' : 'ออมทรัพย์'} (${a.accountCount} บัญชี)</span><span class="stat-value">${money(a.totalBalanceSatang)}</span></div>
+    `).join('');
+    tiles.innerHTML = accountTiles +
+      `<div class="stat-tile"><span class="stat-label">นักเรียนที่ยังใช้งานอยู่</span><span class="stat-value">${res.activeMembers}</span></div>`;
+
+    document.getElementById('repTxByType').innerHTML = res.transactionsByType.length
+      ? `<h3 style="font-size:13px;margin-bottom:8px;">ธุรกรรมในช่วงที่เลือก</h3><table><thead><tr><th>ประเภท</th><th>จำนวนรายการ</th><th>ยอดรวม</th></tr></thead><tbody>
+        ${res.transactionsByType.map((t) => `<tr><td>${escapeHtml(TX_TYPE_LABEL[t.type] || t.type)}</td><td>${t.txCount}</td><td>${money(t.totalAmountSatang)}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-hint">ไม่มีธุรกรรมในช่วงที่เลือก</p>';
+
+    document.getElementById('repLoans').textContent =
+      `เงินกู้ที่กำลังผ่อนอยู่: ${res.loans.outstandingCount} สัญญา รวมเงินต้นคงเหลือ ${money(res.loans.outstandingPrincipalSatang)} บาท`;
+  }
+
+  async function loadReportsByClass() {
+    const box = document.getElementById('repByClass');
+    box.textContent = 'กำลังโหลด...';
+    const res = await api('/api/reports/by-class');
+    if (!res.success) { box.textContent = res.message; return; }
+    const classes = res.classes || [];
+    box.innerHTML = classes.length
+      ? `<table><thead><tr><th>ชั้น</th><th>ห้อง</th><th>จำนวนนักเรียน</th><th>จำนวนบัญชี</th><th>ยอดรวม</th></tr></thead><tbody>
+        ${classes.map((c) => `<tr><td>${escapeHtml(c.grade)}</td><td>${escapeHtml(c.room)}</td><td>${c.memberCount}</td><td>${c.accountCount}</td><td>${money(c.totalBalanceSatang)}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="empty-hint">ยังไม่มีบัญชีที่ใช้งานอยู่</p>';
+  }
+
+  let detOffset = 0;
+  const DET_PAGE_SIZE = 50;
+
+  document.getElementById('detFilterBtn').onclick = () => loadDetailedTransactions(true);
+
+  async function loadDetailedTransactions(reset) {
+    if (reset) detOffset = 0;
+    const type = document.getElementById('detType').value;
+    const q = document.getElementById('detSearch').value.trim();
+    const qs = ['limit=' + DET_PAGE_SIZE, 'offset=' + detOffset];
+    if (type) qs.push('type=' + encodeURIComponent(type));
+    if (q) qs.push('q=' + encodeURIComponent(q));
+
+    const res = await api('/api/reports/transactions?' + qs.join('&'));
+    if (!res.success) return;
+
+    const tbody = document.getElementById('detRows');
+    if (reset) tbody.innerHTML = '';
+    tbody.innerHTML += res.transactions.map((t) => `
+      <tr>
+        <td>${new Date(t.createdAt).toLocaleString('th-TH')}</td>
+        <td>${escapeHtml(t.accountNo)}</td>
+        <td>${escapeHtml(t.fullName)}</td>
+        <td>${escapeHtml(TX_TYPE_LABEL[t.type] || t.type)}</td>
+        <td>${money(t.amountSatang)}</td>
+        <td>${escapeHtml(t.tellerName || '')}</td>
+        <td>${escapeHtml(t.locationName || '')}</td>
+        <td>${escapeHtml(t.note || '')}${t.voidReason ? ' — ยกเลิก: ' + escapeHtml(t.voidReason) : ''}</td>
+      </tr>`).join('');
+
+    document.getElementById('detEmpty').style.display = res.total === 0 ? 'block' : 'none';
+    detOffset += res.transactions.length;
+    document.getElementById('detLoadMoreBtn').style.display = detOffset < res.total ? 'inline-block' : 'none';
+  }
+  document.getElementById('detLoadMoreBtn').onclick = () => loadDetailedTransactions(false);
 
   // ---- BACKUP / EXPORT ---------------------------------------------------
 

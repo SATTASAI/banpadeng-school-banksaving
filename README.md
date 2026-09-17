@@ -25,8 +25,25 @@ snapshot ก่อนลบไว้ในตาราง `graduation_batches` �
 บัญชีทั้งหมด — เปิดด้วย Excel/Sheets ได้ตรงๆ), และใบเสร็จพิมพ์ได้ต่อรายการฝาก-ถอน
 (หน้า `receipt.html` ใช้ปุ่ม "พิมพ์/บันทึกเป็น PDF" ของเบราว์เซอร์)
 
+**Phase 5 (เพิ่มใหม่):** ดอกเบี้ยเงินฝาก/เงินปันผล (คำนวณจากยอดคงเหลือปัจจุบัน ณ
+เวลาที่ดำเนินการ คูณอัตราที่กำหนด ไม่ใช่ยอดเฉลี่ยรายวัน — ตรงกับวิธีที่ธนาคาร
+โรงเรียนทำจริงปีละ 1-2 ครั้ง) ใช้ pattern ตรวจสอบตัวอย่างก่อนแบบเดียวกับการจบ
+การศึกษา (preview token อายุ 5 นาที ผูกกับแอดมินที่ตรวจสอบ คำนวณใหม่จากยอด
+ปัจจุบันตอนกดยืนยันจริงและข้ามบัญชีที่ไม่มีสิทธิ์แล้ว), หน้ารายงานสรุปผล
+(ยอดรวมแยกตามประเภทบัญชี, ยอดฝาก-ถอนตามช่วงเวลา, สรุปตามชั้น/ห้อง, ยอดเงินกู้
+ค้างชำระ), และประวัติธุรกรรมแบบละเอียด (กรองตามวันที่/ประเภท/ผู้ทำรายการ/
+จุดทำรายการ/ค้นหาชื่อหรือเลขบัญชี พร้อม pagination)
+
 ยังไม่รวม: ปรับโครงสร้างหนี้ (loan restructuring), ออกเอกสารราชการแบบเต็ม
 (สัญญาเงินกู้ DOCX ที่ต้องกรอกแบบฟอร์มราชการ) — จะทำต่อเป็นเฟสถัดไป
+
+**สำคัญ (แก้บั๊ก Phase 1):** `migrations/0005_fix_transactions_nullable_bank_session.sql`
+แก้ปัญหาที่พบระหว่างพัฒนา Phase 5 — ตาราง `transactions` เดิมกำหนด
+`bank_session_id NOT NULL` แต่โค้ดเปิดบัญชี (`accounts.js`) ที่มียอดเปิดบัญชี
+มากกว่า 0 บาท insert รายการ `OPENING_DEPOSIT` โดยส่ง `bank_session_id = NULL`
+มาตั้งแต่ Phase 1 ซึ่งจะถูกฐานข้อมูลปฏิเสธจริง (เปิดบัญชีพร้อมฝากเงินตั้งต้น
+จะ error) — ถ้าฐานข้อมูลจริงรันมาตั้งแต่ Phase 1 **ต้องรัน migration นี้ก่อน**
+ตัวอื่นในเฟส 5 (ดอกเบี้ย/เงินปันผลก็ insert แบบไม่ผูก Bank Session เหมือนกัน)
 
 ## สิ่งที่ต่างจากเวอร์ชัน Apps Script เดิม (ตั้งใจให้ต่างและดีขึ้น)
 
@@ -56,6 +73,8 @@ npm run db:migrate:remote
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0002_loans_closure_handover.sql
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0003_academic_year.sql
 npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0004_backup_log.sql
+npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0005_fix_transactions_nullable_bank_session.sql
+npx wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0006_interest_reports.sql
 
 # 3) deploy
 npm run deploy
@@ -78,6 +97,8 @@ npm run db:migrate:local
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0002_loans_closure_handover.sql
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0003_academic_year.sql
 npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0004_backup_log.sql
+npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0005_fix_transactions_nullable_bank_session.sql
+npx wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0006_interest_reports.sql
 npm run dev
 ```
 
@@ -99,6 +120,8 @@ src/
     accounts.js       ค้นหา/เปิดบัญชี
     transactions.js   ฝาก / ถอน / ดูประวัติ
     banksession.js    เปิด-ปิด Bank Session, จุดทำรายการ
+    interest.js       คำนวณ/ยืนยันจ่ายดอกเบี้ยเงินฝาก-เงินปันผล (Phase 5)
+    reports.js        รายงานสรุปผล + ประวัติธุรกรรมแบบละเอียด (Phase 5)
 migrations/
   0001_init.sql       D1 schema
 public/
@@ -132,6 +155,9 @@ public/
 - `CAN_EXPORT_REPORTS` — ดาวน์โหลดรายงาน CSV (Phase 4). สำรอง/กู้คืนฐานข้อมูล
   จำกัดเฉพาะ role ADMIN เท่านั้น ไม่มี permission แยก เพราะเป็นการเข้าถึงข้อมูล
   ทั้งระบบ (รวม password hash)
+- `CAN_RUN_INTEREST` — คำนวณ/ยืนยันจ่ายดอกเบี้ยเงินฝากหรือเงินปันผล (Phase 5)
+- `CAN_VIEW_REPORTS` — ดูหน้ารายงานสรุปผล (สรุปยอดรวม, สรุปตามชั้น/ห้อง) (Phase 5;
+  permission นี้มีมาตั้งแต่ Phase 1 แต่เพิ่งเริ่มใช้งานจริงในเฟสนี้)
 
 Admin มีสิทธิ์ทั้งหมดโดยอัตโนมัติ ส่วน TELLER ต้องเปิดสิทธิ์ที่ต้องการทีละคนผ่าน
 `PUT /api/admin/users/:id` (ส่ง `permissions: { "CAN_MANAGE_LOANS": true, ... }`)

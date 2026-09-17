@@ -29,6 +29,13 @@ import {
 } from './routes/academic.js';
 import { handleExportBackup, handleRestoreBackup, handleListBackupLog } from './routes/backup.js';
 import { handleExportTransactionsCsv, handleExportAccountsCsv, handleGetTransaction } from './routes/exports.js';
+import {
+  handlePreviewInterest,
+  handleRunInterest,
+  handleListInterestRuns,
+  handleInterestRunDetail
+} from './routes/interest.js';
+import { handleReportsSummary, handleReportsByClass, handleTransactionsDetailed } from './routes/reports.js';
 import { jsonError } from './auth.js';
 
 const ROUTES = [
@@ -78,8 +85,17 @@ const ROUTES = [
   ['GET', '/api/backup/log', handleListBackupLog],
 
   ['GET', '/api/export/transactions.csv', handleExportTransactionsCsv],
-  ['GET', '/api/export/accounts.csv', handleExportAccountsCsv]
+  ['GET', '/api/export/accounts.csv', handleExportAccountsCsv],
   // /api/transactions/:id handled separately below
+
+  ['POST', '/api/interest/preview', handlePreviewInterest],
+  ['POST', '/api/interest/run', handleRunInterest],
+  ['GET', '/api/interest/runs', handleListInterestRuns],
+  // /api/interest/runs/:id handled separately below
+
+  ['GET', '/api/reports/summary', handleReportsSummary],
+  ['GET', '/api/reports/by-class', handleReportsByClass],
+  ['GET', '/api/reports/transactions', handleTransactionsDetailed]
 ];
 
 export default {
@@ -146,6 +162,12 @@ async function routeApi(request, env, url) {
   const confirmHandoverMatch = path.match(/^\/api\/cash-handover\/([^/]+)\/confirm$/);
   if (confirmHandoverMatch && request.method === 'POST') {
     return handleConfirmHandover(request, env, confirmHandoverMatch[1]);
+  }
+
+  // /api/interest/runs/:id
+  const interestRunDetailMatch = path.match(/^\/api\/interest\/runs\/([^/]+)$/);
+  if (interestRunDetailMatch && request.method === 'GET') {
+    return handleInterestRunDetail(request, env, interestRunDetailMatch[1]);
   }
 
   for (const [method, routePath, handler] of ROUTES) {
