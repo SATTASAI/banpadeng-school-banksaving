@@ -565,11 +565,13 @@
       </div>
 
       <div class="subcard">
-        <h3>นำเข้าข้อมูลจากระบบเดิม (Apps Script) — ทำครั้งเดียวตอนเริ่มใช้ระบบใหม่</h3>
+        <h3>นำเข้าข้อมูลจากระบบเดิม (Apps Script) — อัปโหลดไฟล์เดียว ใช้งานต่อได้ทันที</h3>
         <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px;">
-          เลือกไฟล์สำรองข้อมูล .xlsx ที่ได้จากฟีเจอร์ "สำรองข้อมูล" ของระบบ BPD School Bank (Apps Script) เดิม
-          ระบบจะอ่านชีต BANK_MEMBERS / ACCOUNTS / TRANSACTIONS แล้วให้ตรวจสอบตัวอย่างผลก่อนยืนยันนำเข้าจริง
-          (บัญชีที่มีเลขบัญชีซ้ำกับที่มีอยู่แล้วจะถูกข้ามอัตโนมัติ นำเข้าซ้ำได้อย่างปลอดภัย)
+          เลือกไฟล์สำรองข้อมูล .xlsx ที่ได้จากฟีเจอร์ "สำรองข้อมูล" ของระบบ BPD School Bank (Apps Script) เดิม —
+          รองรับทั้งไฟล์สำรองแบบย่อ (สมาชิก/บัญชี/ธุรกรรม) และไฟล์สำรองแบบเต็มระบบ (มีผู้ใช้งาน สิทธิ์การใช้งาน
+          จุดทำรายการ ค่าตั้งค่า Bank Session การส่งมอบเงินสด และประเภทเงินกู้ด้วย) ระบบจะอ่านทุกชีตที่มีอยู่ในไฟล์
+          โดยอัตโนมัติแล้วให้ตรวจสอบตัวอย่างผลก่อนยืนยันนำเข้าจริง (รายการที่มีอยู่แล้วในระบบ เช่น ชื่อผู้ใช้งาน
+          หรือเลขบัญชีที่ซ้ำกัน จะถูกข้ามอัตโนมัติ — กดนำเข้าไฟล์เดิมซ้ำได้อย่างปลอดภัยเสมอ)
         </p>
         <label>เลือกไฟล์ (.xlsx)</label>
         <input type="file" id="legacyImportFileInput" accept=".xlsx">
@@ -1478,9 +1480,32 @@
   let legacyImportPayload = null;
   let legacyImportToken = null;
 
+  // Every sheet name this importer understands. BANK_MEMBERS/ACCOUNTS/
+  // TRANSACTIONS are required (the minimal legacy export); everything else
+  // is optional -- present in the full-system export, treated as empty ([])
+  // when the uploaded file doesn't have that sheet, so both backup formats
+  // go through the same upload button.
+  const LEGACY_SHEET_MAP = {
+    members: 'BANK_MEMBERS',
+    accounts: 'ACCOUNTS',
+    transactions: 'TRANSACTIONS',
+    users: 'USERS',
+    locations: 'LOCATIONS',
+    settings: 'SETTINGS',
+    bankSessions: 'BANK_SESSIONS',
+    cashHandovers: 'CASH_HANDOVERS',
+    userPermissions: 'USER_PERMISSIONS',
+    loanProducts: 'LOAN_PRODUCTS'
+  };
+  const LEGACY_REQUIRED_KEYS = ['members', 'accounts', 'transactions'];
+
   function sheetToRows(workbook, sheetName) {
     const sheet = workbook.Sheets[sheetName];
     if (!sheet) return null;
+    // raw:true keeps numbers as numbers; cellDates:true (set when reading the
+    // workbook below) makes date-formatted cells come through as JS Date
+    // objects here, which JSON.stringify turns into ISO strings the server
+    // can parse directly.
     return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true });
   }
 
@@ -1491,7 +1516,7 @@
       reader.onload = () => {
         try {
           const data = new Uint8Array(reader.result);
-          const workbook = XLSX.read(data, { type: 'array', cellDates: false });
+          const workbook = XLSX.read(data, { type: 'array', cellDates: true });
           resolve(workbook);
         } catch (e) {
           reject(e);
@@ -1501,19 +1526,42 @@
     });
   }
 
+  function buildLegacyImportPayload(workbook) {
+    const payload = {};
+    const foundSheets = [];
+    for (const [key, sheetName] of Object.entries(LEGACY_SHEET_MAP)) {
+      const rows = sheetToRows(workbook, sheetName);
+      payload[key] = rows || [];
+      if (rows) foundSheets.push(sheetName);
+    }
+    const missingRequired = LEGACY_REQUIRED_KEYS.filter((k) => !payload[k].length);
+    return { payload, foundSheets, missingRequired };
+  }
+
   function renderLegacyImportSummary(summary, mode) {
     const box = document.getElementById('legacyImportSummary');
     const skippedAccountsList = (summary.skippedAccounts || []).slice(0, 10)
       .map((s) => `<div class="result-sub">- ${escapeHtml(s.accountNo || s.accountId || '')}: ${escapeHtml(s.reason)}</div>`).join('');
     const unknownTypes = Object.entries(summary.skippedTxUnknownType || {});
+    const extra = [
+      ['ผู้ใช้งาน (Users)', summary.userCount],
+      ['จุดทำรายการ (Locations)', summary.locationCount],
+      ['ค่าตั้งค่าระบบ (Settings)', summary.settingCount],
+      ['Bank Session', summary.bankSessionCount],
+      ['การส่งมอบเงินสด (Cash Handover)', summary.cashHandoverCount],
+      ['ประเภทเงินกู้ (Loan Products)', summary.loanProductCount]
+    ].filter(([, v]) => v);
     box.innerHTML = `
       <div class="tx-mini-row"><span>สมาชิกที่จะนำเข้า</span><span>${summary.memberCount.toLocaleString('th-TH')} คน</span></div>
       <div class="tx-mini-row"><span>บัญชีที่จะนำเข้า</span><span>${summary.accountCount.toLocaleString('th-TH')} บัญชี</span></div>
       <div class="tx-mini-row"><span>รายการธุรกรรมที่จะนำเข้า</span><span>${summary.transactionCount.toLocaleString('th-TH')} รายการ</span></div>
-      ${mode === 'commit' ? `<div class="tx-mini-row"><span>บัญชีที่ข้าม (เลขบัญชีซ้ำของเดิมอยู่แล้ว)</span><span>${(summary.skippedDuplicateAccountCount || 0).toLocaleString('th-TH')} บัญชี</span></div>` : ''}
+      ${extra.map(([label, v]) => `<div class="tx-mini-row"><span>${escapeHtml(label)}</span><span>${v.toLocaleString('th-TH')} รายการ</span></div>`).join('')}
+      ${mode === 'commit' ? `<div class="tx-mini-row"><span>รายการที่นำเข้าจริง (ข้ามรายการที่มีอยู่แล้วอัตโนมัติ)</span><span>ดูรายละเอียดด้านล่าง</span></div>` : ''}
+      ${mode === 'commit' && summary.importedCounts ? Object.entries(summary.importedCounts).map(([k, v]) => `<div class="tx-mini-row"><span>- ${escapeHtml(k)}</span><span>${Number(v).toLocaleString('th-TH')}</span></div>`).join('') : ''}
       <div class="tx-mini-row"><span>รายการปรับยอด (ยอดจากประวัติไม่ตรงยอดที่บันทึกไว้)</span><span>${summary.adjustmentCount.toLocaleString('th-TH')} บัญชี (รวม ${money(summary.totalAdjustmentSatang)} บาท)</span></div>
       ${summary.orphanTxCount ? `<div class="tx-mini-row"><span>ธุรกรรมที่หาบัญชีเจ้าของไม่พบ (ข้าม)</span><span>${summary.orphanTxCount.toLocaleString('th-TH')} รายการ</span></div>` : ''}
       ${(summary.membersWithPlaceholderName || []).length ? `<div class="tx-mini-row"><span>สมาชิกไม่มีชื่อในระบบเดิม (ใช้ชื่อชั่วคราวแทน)</span><span>${summary.membersWithPlaceholderName.length.toLocaleString('th-TH')} คน</span></div>` : ''}
+      ${(summary.skippedUsers || []).length ? `<div class="tx-mini-row"><span>ผู้ใช้งานที่ข้าม (ข้อมูลไม่ครบ)</span><span>${summary.skippedUsers.length.toLocaleString('th-TH')} คน</span></div>` : ''}
       ${unknownTypes.length ? `<div class="result-sub">ประเภทธุรกรรมที่ไม่รู้จัก (ข้าม): ${unknownTypes.map(([k, v]) => `${escapeHtml(k)} x${v}`).join(', ')}</div>` : ''}
       ${skippedAccountsList ? `<div style="margin-top:6px;"><strong style="font-size:12px;">บัญชีที่ข้าม (ตัวอย่างสูงสุด 10 รายการ):</strong>${skippedAccountsList}</div>` : ''}
     `;
@@ -1532,15 +1580,13 @@
     msg.className = 'msg'; msg.textContent = 'กำลังอ่านไฟล์...';
     try {
       const workbook = await readLegacyWorkbookFile(fileInput.files[0]);
-      const members = sheetToRows(workbook, 'BANK_MEMBERS');
-      const accounts = sheetToRows(workbook, 'ACCOUNTS');
-      const transactions = sheetToRows(workbook, 'TRANSACTIONS');
-      if (!members || !accounts || !transactions) {
+      const { payload, missingRequired } = buildLegacyImportPayload(workbook);
+      if (missingRequired.length) {
         msg.className = 'msg error';
         msg.textContent = 'ไฟล์นี้ไม่มีชีต BANK_MEMBERS / ACCOUNTS / TRANSACTIONS ที่ระบบต้องการ กรุณาตรวจสอบว่าเป็นไฟล์สำรองจากระบบเดิมจริง';
         return;
       }
-      legacyImportPayload = { members, accounts, transactions };
+      legacyImportPayload = payload;
 
       msg.className = 'msg'; msg.textContent = 'กำลังคำนวณตัวอย่าง...';
       const res = await api('/api/backup/import-legacy/preview', { method: 'POST', body: JSON.stringify(legacyImportPayload) });
