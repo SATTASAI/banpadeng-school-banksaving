@@ -7,9 +7,13 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "db:migrate:local": "wrangler d1 execute banpadeng-school-bank-db --local --file=./migrations/0001_init.sql",
-    "db:migrate:remote": "wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0001_init.sql"
+    "db:migrate:remote": "wrangler d1 execute banpadeng-school-bank-db --remote --file=./migrations/0001_init.sql",
+    "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "wrangler": "^3.90.0"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "13.2.2"
   }
 }

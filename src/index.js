@@ -1,3 +1,4 @@
+import {handleBankPasskeys} from './passkeys.js';
 import { handleSetup, handleLogin, handleLogout, handleBootstrap, handleChangePassword } from './routes/auth.js';
 import { handleListUsers, handleCreateUser, handleUpdateUser, handleListActiveUsers } from './routes/admin.js';
 import { handleSearchAccounts, handleOpenAccount, handleCloseAccount } from './routes/accounts.js';
@@ -128,6 +129,7 @@ export default {
 
 async function routeApi(request, env, url) {
   const path = url.pathname;
+  if(path.startsWith('/api/passkeys'))return handleBankPasskeys(request,env);
 
   // /api/admin/users/:id
   const userIdMatch = path.match(/^\/api\/admin\/users\/([^/]+)$/);
