@@ -13,8 +13,8 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "banpadeng-school-bank-db",
-      "database_id": "899e0c19-96c0-48f6-ada8-b06c7b628aca"
+      "database_name": "banksaving-sandbox-db",
+      "database_id": "4b1edc8a-587e-4d96-99a9-d3619c5a0168"
     }
   ]
 }
