@@ -2,7 +2,7 @@
 <html lang="th" data-passkey-auth="bank">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>เข้าสู่ระบบ - BPD School Bank</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,6 +86,26 @@
   }
   .error:not(:empty) { padding: 7px 11px; }
   .footnote { text-align: center; font-size: 11.5px; color: var(--muted); margin-top: 20px; }
+  @keyframes cardIn { from { opacity: 0; transform: translateY(24px) scale(.97); } to { opacity: 1; transform: none; } }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @media (max-width: 760px) {
+    body { padding: calc(env(safe-area-inset-top) + 20px) 18px calc(env(safe-area-inset-bottom) + 20px); }
+    .card { max-width: 420px; border-radius: 28px; padding: 34px 22px 26px; animation: cardIn .6s cubic-bezier(.2,.9,.25,1) both;
+      box-shadow: 0 1px 0 rgba(255,255,255,.8) inset, 0 40px 80px -30px rgba(10,20,80,.55); }
+    .logo-badge { width: 84px; height: 84px; border-radius: 24px; animation: float 4s ease-in-out infinite; }
+    h1 { font-size: 21px; font-weight: 700; letter-spacing: -.2px; }
+    p.sub { font-size: 13.5px; }
+    label { font-size: 13px; }
+    input { font-size: 16px; min-height: 50px; border-radius: 14px; padding: 12px 15px; }
+    button { min-height: 52px; border-radius: 15px; font-size: 16px;
+      background: linear-gradient(135deg, #3aa0ff, var(--primary) 50%, #5b4bd6);
+      box-shadow: 0 14px 26px -12px rgba(30,60,200,.7), inset 0 1px 0 rgba(255,255,255,.3); }
+    button:hover:not(:disabled) { background: linear-gradient(135deg, #3aa0ff, var(--primary) 50%, #5b4bd6); filter: brightness(1.05); }
+    button:active:not(:disabled) { transform: scale(.96); }
+    #passkeyLogin { margin-top: 12px; background: rgba(255,255,255,.85); color: var(--primary-dark); box-shadow: inset 0 0 0 1px rgba(10,100,255,.2); }
+    .card > a { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--primary-dark); text-decoration: none; font-weight: 600; }
+  }
+  @media (prefers-reduced-motion: reduce) { .card, .logo-badge { animation: none !important; } }
 </style>
 </head>
 <body>
