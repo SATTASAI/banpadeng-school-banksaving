@@ -336,6 +336,30 @@
     .modal-box::before { content: ''; display: block; width: 40px; height: 5px; border-radius: 99px; background: rgba(0,0,0,.15); margin: 0 auto 14px; }
     .modal-box h2 { font-size: 18px; }
   }
+  /* deposit/withdraw tiles: mobile keeps the original look, PC gets large icon cards */
+  .tx-action-icon, .tx-action-sub { display: none; }
+  @media (min-width: 761px) {
+    .tx-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0 6px; }
+    .tx-action-icon, .tx-action-sub { display: block; }
+    .tx-action-icon { display: grid; place-items: center; width: 56px; height: 56px; flex-shrink: 0; border-radius: 16px; background: rgba(255,255,255,.22); }
+    .tx-action-icon svg { width: 30px; height: 30px; stroke: #fff; fill: none; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    .tx-action-text { display: flex; flex-direction: column; gap: 3px; }
+    .tx-action-title { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+    .tx-action-sub { font-size: 13px; font-weight: 500; opacity: .9; }
+    button.primary.tx-action {
+      display: flex; align-items: center; gap: 16px; width: 100%; min-height: 96px; margin: 0;
+      padding: 18px 22px; border: none; border-radius: var(--radius-lg); color: #fff; text-align: left;
+      font-family: inherit; cursor: pointer;
+      box-shadow: 0 14px 28px -16px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.25);
+      transition: transform .15s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    button.primary.tx-deposit { background: linear-gradient(135deg, #2bb673, var(--success)); }
+    button.primary.tx-withdraw { background: linear-gradient(135deg, #ff5a6a, var(--danger)); }
+    button.primary.tx-action:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-2px); box-shadow: 0 18px 32px -16px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25); }
+    button.primary.tx-action:active:not(:disabled) { transform: translateY(0) scale(.99); }
+    button.primary.tx-action:focus-visible { outline: 3px solid rgba(10,132,255,.5); outline-offset: 3px; }
+    button.primary.tx-action:disabled { opacity: .5; box-shadow: none; transform: none; }
+  }
   @media (max-width: 760px) and (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
@@ -410,9 +434,15 @@
       <label>หมายเหตุ</label>
       <input id="noteInput" maxlength="300">
 
-      <div>
-        <button class="primary" id="depositBtn">ฝากเงิน</button>
-        <button class="primary danger" id="withdrawBtn">ถอนเงิน</button>
+      <div class="tx-actions">
+        <button class="primary tx-action tx-deposit" id="depositBtn">
+          <span class="tx-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v12"/><path d="M6 11l6 6 6-6"/><path d="M5 20h14"/></svg></span>
+          <span class="tx-action-text"><span class="tx-action-title">ฝากเงิน</span><span class="tx-action-sub">เพิ่มเงินเข้าบัญชี</span></span>
+        </button>
+        <button class="primary tx-action tx-withdraw" id="withdrawBtn">
+          <span class="tx-action-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20V8"/><path d="M6 13l6-6 6 6"/><path d="M5 4h14"/></svg></span>
+          <span class="tx-action-text"><span class="tx-action-title">ถอนเงิน</span><span class="tx-action-sub">นำเงินออกจากบัญชี</span></span>
+        </button>
       </div>
       <div class="msg" id="txMsg"></div>
 
